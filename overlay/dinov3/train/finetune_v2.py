@@ -172,7 +172,8 @@ def eval_model(model, val_loader, criterion, device, rank=0):
                 embedding = model(data_input)
             loss, output = criterion(embedding.float(), label)
 
-            total_loss += loss.item()
+            # loss 是 batch 均值，按样本数加权累加，保证 avg_loss 是逐样本平均 CE
+            total_loss += loss.item() * label.size(0)
 
             pred = output.data.max(1)[1]
             correct += pred.eq(label.data).sum().item()
