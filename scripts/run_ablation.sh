@@ -88,10 +88,12 @@ for name in "${NAMES[@]}"; do
     skip=0
     for s in "${SKIP_ARR[@]}"; do [ "$s" == "$name" ] && skip=1; done
     [ $skip -eq 1 ] && continue
-    # 选当前任务最少的 GPU
+    # 选当前任务最少的 GPU（按已分配任务字符串长度近似）
     best="${GPU_ARR[0]}"
     for g in "${GPU_ARR[@]}"; do
-        [ ${#GPU_JOBS[$g]:-0} -lt ${#GPU_JOBS[$best]:-0} ] && best="$g"
+        cur="${GPU_JOBS[$g]:-}"
+        best_jobs="${GPU_JOBS[$best]:-}"
+        [ "${#cur}" -lt "${#best_jobs}" ] && best="$g"
     done
     GPU_JOBS[$best]="${GPU_JOBS[$best]:-} $name:$port"
     port=$((port + 1))
