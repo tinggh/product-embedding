@@ -11,7 +11,9 @@
 #
 # 环境变量：
 #   PY REPO DATASET_ROOT NPY_DIR CKPT HIERARCHY PROBE_ROOT WORK_DIR  必设
-#   GPUS        逗号分隔 GPU 列表（默认 "0"），每个实验独占 1 卡、卡间并行
+#   GPU_GROUPS  分号分隔的 GPU 组，组内逗号分隔（如 "0,1;2,3;4,5;6,7" = 4 组双卡）。
+#               实验按组轮询分配、组间并行、组内串行（多出的实验排在该组后面）。
+#               兼容旧用法 GPUS="0,1"（每卡一组）。
 #   EPOCHS      训练 epoch 数（默认 100，完整训练）
 #   ITERS       每 epoch 最大 iter（默认 0 = 完整 epoch；仅快速冒烟时设值）
 #   MILESTONES  lr 衰减里程碑（默认 "30,60,90"，应随 EPOCHS 调整）
@@ -25,7 +27,7 @@ set -euo pipefail
 PY="${PY:?}"; REPO="${REPO:?}"; DATASET_ROOT="${DATASET_ROOT:?}"; NPY_DIR="${NPY_DIR:?}"
 CKPT="${CKPT:?}"; PROBE_ROOT="${PROBE_ROOT:?}"; WORK_DIR="${WORK_DIR:?}"
 HIERARCHY="${HIERARCHY:-}"
-GPUS="${GPUS:-0}"
+GPU_GROUPS="${GPU_GROUPS:-${GPUS:-0}}"
 EPOCHS="${EPOCHS:-100}"
 ITERS="${ITERS:-0}"
 MILESTONES="${MILESTONES:-30,60,90}"
@@ -50,6 +52,8 @@ extra_args_for() {
 run_one() {
     local name="$1" gpu="$2" port="$3"
     local out="$WORK_DIR/ablation/$name"
+    local ngpu
+    ngpu=$(awk -F',' '{print NF}' <<< "$gpu")
     mkdir -p "$out"
     local hard=()
     if [ -n "$HIERARCHY" ] && [ "$name" != "no_hardneg" ]; then
@@ -60,7 +64,7 @@ run_one() {
     export DINOV3_RUN_LOG="$out/app.log"
     # shellcheck disable=SC2086
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m torch.distributed.run \
-        --nproc_per_node=1 --master_port="$port" \
+        --nproc_per_node="$ngpu" --master_port="$port" \
         dinov3/train/finetune_v2.py --train \
         --dataset_root "$DATASET_ROOT" --dataset_extra "$NPY_DIR" \
         --ckpt_path "$CKPT" --output_dir "$out" \
@@ -80,7 +84,7 @@ run_one() {
     echo "[gpu $gpu] done $name"
 }
 
-IFS=',' read -ra GPU_ARR <<< "$GPUS"
+IFS=';' read -ra GPU_ARR <<< "$GPU_GROUPS"
 IFS=',' read -ra SKIP_ARR <<< "$SKIP"
 declare -A GPU_JOBS
 port=29700
