@@ -30,7 +30,28 @@ git clone https://github.com/tinggh/product-embedding.git
 
 详见 `overlay/app/RUNBOOK_finetune_v2.md`（消融实验矩阵、4090-24G 显存档位、评测门禁流程）。
 
-快速开始（GPU 服务器）：
+容器/服务器一键流水线（`scripts/` 下，全部参数走环境变量，可直接迁移到其他 GPU 容器）：
+
+```bash
+# 1. 数据准备：metadata → hierarchy → 测试集选择(闭集+开集) → npy 切分(开集剔除)
+PY=/path/to/python REPO=/path/dinov3-main PE=/path/product-embedding \
+DATASET_ROOT=/path/sku100wdata FINGERPRINT=/path/fingerprint.csv \
+WORK_DIR=/path/work bash scripts/00_prepare_data.sh
+
+# 2. 训练（E5 全量配置；EXTRA_ARGS 可覆盖，如 EXTRA_ARGS="--max_epoch 30"）
+PY=/path/to/python REPO=/path/dinov3-main \
+DATASET_ROOT=/path/sku100wdata NPY_DIR=/path/work/npy \
+CKPT=/path/dinov3_vitl16_pretrain_lvd1689m.pth OUTPUT_DIR=/path/runs/exp \
+NGPU=8 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+HIERARCHY=/path/work/hierarchy.json bash scripts/01_train.sh
+
+# 3. 六维探针评测
+PY=/path/to/python REPO=/path/dinov3-main \
+PROBE_ROOT=/path/work/testset/probe CKPT=/path/runs/exp/best.pth \
+OUTPUT=/path/work/report bash scripts/02_probe_eval.sh
+```
+
+手动分步调用（旧方式）：
 
 ```bash
 cd /path/to/dinov3-main
