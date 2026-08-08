@@ -121,7 +121,7 @@ class ProbeFeatureExtractor:
         features = {}
         for i in range(0, len(image_paths), batch_size):
             batch_paths = image_paths[i : i + batch_size]
-            pil_imgs = [ImageProcessor.preprocess_image(p) for p in batch_paths]
+            pil_imgs = [ImageProcessor.preprocess_image(p, isb64=False) for p in batch_paths]
             input_tensor = torch.stack([self.transform(p) for p in pil_imgs]).to(self.device)
             if self.device.startswith("cuda"):
                 with torch.autocast("cuda", dtype=torch.bfloat16):
