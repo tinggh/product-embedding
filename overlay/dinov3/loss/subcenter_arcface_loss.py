@@ -51,17 +51,21 @@ class SubCenterArcFaceLoss(nn.Module):
         return cos_theta_all.max(dim=2).values.clamp(-1 + 1e-7, 1 - 1e-7)
 
     def forward(self, embedding: torch.Tensor, ground_truth: torch.Tensor):
-        cos_theta = self.subcenter_similarity(embedding)
-        pos = torch.gather(cos_theta, 1, ground_truth.view(-1, 1))
-        sin_theta = torch.sqrt((1.0 - torch.pow(pos, 2)).clamp(-1 + 1e-7, 1 - 1e-7))
-        phi = pos * self.cos_m - sin_theta * self.sin_m
-        if self.easy_margin:
-            phi = torch.where(pos > 0, phi, pos)
-        else:
-            phi = torch.where(pos > self.th, phi, pos - self.mm)
-        output = torch.scatter(cos_theta, 1, ground_truth.view(-1, 1).long(), phi)
-        output *= self.scale
-        loss = self.ce(output, ground_truth)
+        # 角度 margin 计算需要数值精度，强制在 fp32 下进行（关闭 autocast，
+        # 避免 einsum 被转为 bf16 后与 fp32 的 phi 发生 dtype 冲突）
+        with torch.autocast(device_type="cuda", enabled=False):
+            embedding = embedding.float()
+            cos_theta = self.subcenter_similarity(embedding)
+            pos = torch.gather(cos_theta, 1, ground_truth.view(-1, 1))
+            sin_theta = torch.sqrt((1.0 - torch.pow(pos, 2)).clamp(-1 + 1e-7, 1 - 1e-7))
+            phi = pos * self.cos_m - sin_theta * self.sin_m
+            if self.easy_margin:
+                phi = torch.where(pos > 0, phi, pos)
+            else:
+                phi = torch.where(pos > self.th, phi, pos - self.mm)
+            output = torch.scatter(cos_theta, 1, ground_truth.view(-1, 1).long(), phi)
+            output *= self.scale
+            loss = self.ce(output, ground_truth)
         return loss, cos_theta
 
 
@@ -77,14 +81,16 @@ class CenterLoss(nn.Module):
         self.subcenter_loss = subcenter_loss
 
     def forward(self, embedding: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
-        w = self.subcenter_loss.weight  # (C, K, D)
-        centers = w[ground_truth]  # (N, K, D)
-        x = F.normalize(embedding).unsqueeze(1)  # (N, 1, D)
-        w_norm = F.normalize(centers, dim=-1)
-        # 选余弦相似度最高的子中心作为活跃中心
-        sim = (x * w_norm).sum(-1)  # (N, K)
-        active = centers[torch.arange(embedding.size(0), device=embedding.device), sim.argmax(dim=1)]
-        return ((embedding - active) ** 2).sum(dim=1).mean()
+        with torch.autocast(device_type="cuda", enabled=False):
+            embedding = embedding.float()
+            w = self.subcenter_loss.weight  # (C, K, D)
+            centers = w[ground_truth]  # (N, K, D)
+            x = F.normalize(embedding).unsqueeze(1)  # (N, 1, D)
+            w_norm = F.normalize(centers, dim=-1)
+            # 选余弦相似度最高的子中心作为活跃中心
+            sim = (x * w_norm).sum(-1)  # (N, K)
+            active = centers[torch.arange(embedding.size(0), device=embedding.device), sim.argmax(dim=1)]
+            return ((embedding - active) ** 2).sum(dim=1).mean()
 
 
 class SubCenterArcFaceWithCenterLoss(nn.Module):
