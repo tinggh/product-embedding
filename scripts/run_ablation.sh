@@ -52,6 +52,7 @@ run_one() {
     fi
     echo "[gpu $gpu] start $name"
     cd "$REPO"
+    export DINOV3_RUN_LOG="$out/app.log"
     # shellcheck disable=SC2086
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m torch.distributed.run \
         --nproc_per_node=1 --master_port="$port" \

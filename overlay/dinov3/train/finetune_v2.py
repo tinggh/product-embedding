@@ -45,7 +45,7 @@ from dinov3.data.datasets import RetailProduct
 import argparse
 import re
 
-from app.log_module import logger
+from dinov3.train.run_logger import logger
 
 from collections import OrderedDict
 from dataclasses import dataclass
