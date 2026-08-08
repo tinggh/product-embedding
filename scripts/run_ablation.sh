@@ -28,6 +28,7 @@ EPOCHS="${EPOCHS:-8}"
 ITERS="${ITERS:-1500}"
 SKIP="${SKIP:-}"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg)
 

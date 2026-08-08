@@ -34,6 +34,7 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export PYTHONPATH="$REPO"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 # 每次运行的日志独立落盘，避免共享代码库时多任务日志混杂：
 #   $OUTPUT_DIR/app.log    —— 训练过程日志（run_logger，读 DINOV3_RUN_LOG）
