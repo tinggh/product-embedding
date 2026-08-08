@@ -89,7 +89,7 @@ class ProductEmbedder(nn.Module):
 
 
 def build_product_embedder(pooling: str = "cls+gem", embed_dim: int = 1024) -> ProductEmbedder:
-    """按 finetune.py 现有 vit_large 配置构建 embedder（224px, RoPE, 4 storage tokens）。"""
+    """按 finetune 配置构建 embedder（224px, RoPE, 4 storage tokens）。"""
     backbone = vit_large(
         img_size=224,
         patch_size=16,
@@ -105,4 +105,11 @@ def build_product_embedder(pooling: str = "cls+gem", embed_dim: int = 1024) -> P
         untie_cls_and_patch_norms=False,
         untie_global_and_local_cls_norm=False,
     )
+    # mask_k_bias 的 bias_mask buffer 初始为 NaN，需等 ckpt 加载才有 [1,0,1] 掩码；
+    # 若构建后未加载权重（如单元测试/调试），此处兜底初始化，避免前向产出 NaN。
+    for m in backbone.modules():
+        if hasattr(m, "bias_mask") and m.bias_mask is not None and torch.isnan(m.bias_mask).any():
+            o = m.out_features
+            m.bias_mask.fill_(1)
+            m.bias_mask[o // 3 : 2 * o // 3].fill_(0)
     return ProductEmbedder(backbone, embed_dim=embed_dim, pooling=pooling)

@@ -287,7 +287,10 @@ def train_distributed(opt, args):
 
     model.to(device)
     criterion.to(device)
-    model = DDP(model, device_ids=[local_rank])
+    # broadcast_buffers=False：双视图第二次前向会触发 buffer 广播（copy_ 原地修改），
+    # 使第一次前向保存的 qkv.bias_mask version 失效导致 backward 报错；
+    # bias_mask/rope periods 均为静态 buffer，无需广播。
+    model = DDP(model, device_ids=[local_rank], broadcast_buffers=False)
 
     optimizer = torch.optim.AdamW(param_groups, weight_decay=opt.weight_decay)
     scheduler = MultiStepLR(optimizer, milestones=[30, 60, 90], gamma=0.1)

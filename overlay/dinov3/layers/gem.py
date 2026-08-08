@@ -17,7 +17,20 @@ class GeM(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, N, C) patch tokens -> (B, C)
-        return x.clamp(min=self.eps).pow(self.p).mean(dim=1).pow(1.0 / self.p)
+        # bf16 下 x.pow(p) 的均值可能下溢为 0，外层 pow(1/p) 反向传播会产生 inf/NaN，
+        # 因此池化强制 fp32 计算（关闭 autocast），并在 mean 后再次 clamp 保底。
+        in_dtype = x.dtype
+        with torch.autocast(device_type="cuda", enabled=False):
+            p = self.p.float()
+            out = (
+                x.float()
+                .clamp(min=self.eps)
+                .pow(p)
+                .mean(dim=1)
+                .clamp(min=self.eps)
+                .pow(1.0 / p)
+            )
+        return out.to(in_dtype)
 
     def __repr__(self):
         return f"{self.__class__.__name__}(p={self.p.data.item():.4f}, eps={self.eps})"
