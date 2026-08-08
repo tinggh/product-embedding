@@ -30,6 +30,7 @@ import torch.backends.cudnn as cudnn
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 
 from dinov3.loss.arcface_loss import ArcFaceLoss
+from dinov3.loss.arcface_amp import ArcFaceLossAMP
 from dinov3.loss.subcenter_arcface_loss import SubCenterArcFaceWithCenterLoss
 from dinov3.loss.local_global_consistency import LocalGlobalConsistencyLoss
 from dinov3.data.transforms import ResizeWithRatio
@@ -112,7 +113,7 @@ def build_criterion(args, num_classes):
             scale=args.scale,
             center_lambda=args.center_lambda,
         )
-    return ArcFaceLoss(1024, num_classes, margin=args.margin, scale=args.scale)
+    return ArcFaceLossAMP(1024, num_classes, margin=args.margin, scale=args.scale)
 
 
 def load_model_weights(embedder, ckpt_path):
