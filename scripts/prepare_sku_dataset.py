@@ -73,6 +73,10 @@ def build_entries(rows):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_root", required=True)
+    parser.add_argument(
+        "--output", default="",
+        help="npy 输出目录（默认写回 dataset_root；数据集只读时指定，训练时配合 --dataset_extra 使用）",
+    )
     parser.add_argument("--val_ratio", type=float, default=0.05)
     parser.add_argument("--test_ratio", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
@@ -94,14 +98,16 @@ def main():
                 relpath = os.path.join(class_name, images[i])
                 splits[split_name].append((class_index, class_index, class_name, relpath))
 
+    out_dir = args.output or args.dataset_root
+    os.makedirs(out_dir, exist_ok=True)
     for split_name, rows in splits.items():
         entries = build_entries(rows)
-        np.save(os.path.join(args.dataset_root, f"entries-{split_name}.npy"), entries)
-        np.save(os.path.join(args.dataset_root, f"class-ids-{split_name}.npy"), class_ids)
-        np.save(os.path.join(args.dataset_root, f"class-names-{split_name}.npy"), class_names)
+        np.save(os.path.join(out_dir, f"entries-{split_name}.npy"), entries)
+        np.save(os.path.join(out_dir, f"class-ids-{split_name}.npy"), class_ids)
+        np.save(os.path.join(out_dir, f"class-names-{split_name}.npy"), class_names)
         print(f"{split_name}: {len(rows)} images")
 
-    print("done. npy written to dataset root:", args.dataset_root)
+    print("done. npy written to:", out_dir)
 
 
 if __name__ == "__main__":

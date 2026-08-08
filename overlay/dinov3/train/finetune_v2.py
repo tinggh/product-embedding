@@ -202,11 +202,12 @@ def train_distributed(opt, args):
     device = torch.device("cuda")
     torch.cuda.set_device(local_rank)
     cudnn.benchmark = True
+    extra_root = args.dataset_extra or args.dataset_root
 
     train_dataset = RetailProduct(
         split=RetailProduct.Split.TRAIN,
         root=args.dataset_root,
-        extra=args.dataset_root,
+        extra=extra_root,
         transform=build_train_transform(args),
     )
 
@@ -256,7 +257,7 @@ def train_distributed(opt, args):
     val_dataset = RetailProduct(
         split=RetailProduct.Split.VAL,
         root=args.dataset_root,
-        extra=args.dataset_root,
+        extra=extra_root,
         transform=build_val_transform(),
     )
     val_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -422,13 +423,14 @@ def test_distributed(opt, args):
     device = torch.device("cuda")
     torch.cuda.set_device(local_rank)
     cudnn.benchmark = True
+    extra_root = args.dataset_extra or args.dataset_root
 
     model = build_product_embedder(pooling=args.pooling, embed_dim=1024)
 
     train_dataset = RetailProduct(
         split=RetailProduct.Split.TRAIN,
         root=args.dataset_root,
-        extra=args.dataset_root,
+        extra=extra_root,
         transform=build_val_transform(),
     )
     class_ids = train_dataset._get_class_ids()
@@ -438,7 +440,7 @@ def test_distributed(opt, args):
     val_dataset = RetailProduct(
         split=RetailProduct.Split.TEST,
         root=args.dataset_root,
-        extra=args.dataset_root,
+        extra=extra_root,
         transform=build_val_transform(),
     )
     val_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -520,13 +522,33 @@ def parse_args():
         help="层级标签文件（app/build_hierarchy.py 生成），提供后启用硬负样本 batch 采样",
     )
     parser.add_argument("--hard_ratio", type=float, default=0.5, help="硬负样本 batch 比例")
+    # ---- 训练超参 CLI 覆盖（默认 None 时用 opt dataclass 值） ----
+    parser.add_argument("--max_epoch", type=int, default=None)
+    parser.add_argument("--batchsize", type=int, default=None, help="per-GPU batch")
+    parser.add_argument("--accum_steps", type=int, default=None)
+    parser.add_argument("--num_workers", type=int, default=None)
+    parser.add_argument("--save_interval", type=int, default=None)
+    parser.add_argument(
+        "--dataset_extra", default="",
+        help="npy 缓存目录（默认与 dataset_root 相同；数据集目录只读时指定）",
+    )
     args = parser.parse_args()
     return args
+
+
+def apply_cli_overrides(opt, args):
+    """CLI 覆盖 opt dataclass 的训练超参（冒烟/调参用）。"""
+    for field in ("max_epoch", "batchsize", "accum_steps", "num_workers", "save_interval"):
+        value = getattr(args, field, None)
+        if value is not None:
+            setattr(opt, field, value)
+    return opt
 
 
 if __name__ == "__main__":
     opt_instance = opt()
     args = parse_args()
+    opt_instance = apply_cli_overrides(opt_instance, args)
     if args.train:
         train_distributed(opt_instance, args)
     else:
