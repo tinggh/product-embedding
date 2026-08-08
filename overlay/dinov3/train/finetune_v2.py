@@ -330,6 +330,8 @@ def train_distributed(opt, args):
         model.train()
         criterion.train()
         for ii, data in enumerate(trainloader):
+            if args.max_iters_per_epoch and ii >= args.max_iters_per_epoch:
+                break  # 消融短跑：限制每 epoch 迭代数
             views, label = data
             label = label.to(device, non_blocking=True).long()
 
@@ -542,6 +544,10 @@ def parse_args():
     parser.add_argument(
         "--dataset_extra", default="",
         help="npy 缓存目录（默认与 dataset_root 相同；数据集目录只读时指定）",
+    )
+    parser.add_argument(
+        "--max_iters_per_epoch", type=int, default=0,
+        help="每 epoch 最大迭代数（0=完整 epoch；消融短跑用，如 1500）",
     )
     args = parser.parse_args()
     return args
