@@ -50,15 +50,36 @@ SPEC_SUFFIX_RE = re.compile(
 # 包装量词（箱/袋/盒/瓶/包/罐/条），仅作尾部剥离
 PACK_SUFFIX_RE = re.compile(r"(箱|袋|盒|瓶|包|罐|条|装)$")
 
+# 中缀口味词：出现在名称中间（非尾部）的口味描述，如"辣椒仔蒜味辣椒调味汁"中的"蒜味"。
+# 先剥已知口味词（可出现在任意位置，容忍 味/口味 后缀），再剥通用的"单字+味"（如蒜味）。
+# 保护"调味"（调味汁/调味料是品类词不是口味）。
+# 注意：product_line 分组只用于硬负样本优先级与探针对构造，过度合并无害（不同 SKU 本就是负样本）。
+_FLAVOR_ALT = "|".join(sorted((re.escape(w) for w in FLAVOR_SET), key=len, reverse=True))
+FLAVOR_WORD_ANYWHERE_RE = re.compile(r"(?:%s)(?:味|口味)?" % _FLAVOR_ALT, re.IGNORECASE)
+FLAVOR_INFIX_RE = re.compile(r"[一-鿿](?<!调)味")
+
+
+def strip_flavor_infix(name):
+    """移除名称中间的口味描述（含词表词的 X味/X口味 形式）。"""
+    prev = None
+    while prev != name:
+        prev = name
+        name = FLAVOR_WORD_ANYWHERE_RE.sub("", name)
+        name = FLAVOR_INFIX_RE.sub("", name).strip()
+    return name
+
 
 def split_class_name(class_name):
-    """class_name 形如 {id}_{barcode}_{商品名}，返回 (id, barcode, name)。"""
+    """class_name 形如 {id}_{barcode}_{商品名}，返回 (id, barcode, name)。
+
+    纯 barcode 类目名（无下划线，如 sku100wdata 数据集）返回 ("", barcode, "")。
+    """
     parts = class_name.split("_", 2)
     if len(parts) >= 3:
         return parts[0], parts[1], parts[2]
     if len(parts) == 2:
         return parts[0], parts[1], ""
-    return class_name, "", ""
+    return "", class_name, ""
 
 
 def parse_brand(product_name):
@@ -70,8 +91,12 @@ def parse_brand(product_name):
 
 
 def strip_product_name(product_name):
-    """从商品名尾部迭代剥离口味/规格/包装词，得到产品系名（仍含 brand 前缀）。"""
-    name = product_name.strip()
+    """剥离口味/规格/包装词，得到产品系名（仍含 brand 前缀）。
+
+    先剥离中缀口味词（"辣椒仔蒜味辣椒调味汁"→"辣椒仔辣椒调味汁"），
+    再迭代剥离尾部口味/规格/包装词。
+    """
+    name = strip_flavor_infix(product_name.strip())
     changed = True
     while changed and name:
         changed = False

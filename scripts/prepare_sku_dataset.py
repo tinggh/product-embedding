@@ -80,7 +80,17 @@ def main():
     parser.add_argument("--val_ratio", type=float, default=0.05)
     parser.add_argument("--test_ratio", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--holdout_list", default="",
+        help="开集留出 SKU 清单（每行一个类目名），其全部图片只进 TEST，不进 TRAIN/VAL",
+    )
     args = parser.parse_args()
+
+    holdout = set()
+    if args.holdout_list:
+        with open(args.holdout_list, encoding="utf-8") as f:
+            holdout = {line.strip() for line in f if line.strip()}
+        print(f"holdout classes: {len(holdout)}")
 
     rng = np.random.default_rng(args.seed)
     classes = scan_classes(args.dataset_root)
@@ -92,7 +102,11 @@ def main():
 
     splits = {"TRAIN": [], "VAL": [], "TEST": []}
     for class_index, (class_name, images) in enumerate(classes):
-        tr, va, te = split_images(images, args.val_ratio, args.test_ratio, rng)
+        if class_name in holdout:
+            # 开集留出：全部图片只进 TEST
+            tr, va, te = [], [], list(range(len(images)))
+        else:
+            tr, va, te = split_images(images, args.val_ratio, args.test_ratio, rng)
         for split_name, split_idx in (("TRAIN", tr), ("VAL", va), ("TEST", te)):
             for i in split_idx:
                 relpath = os.path.join(class_name, images[i])
