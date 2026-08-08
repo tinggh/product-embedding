@@ -96,7 +96,7 @@ def strip_product_name(product_name):
 
 
 def load_metadata(metadata_csv):
-    """读取权威元数据（列：barcode,brand,category,product_line），按 barcode 索引。"""
+    """读取权威元数据（列：barcode,brand,category,product_line[,name]），按 barcode 索引。"""
     metadata = {}
     with open(metadata_csv, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
@@ -107,16 +107,27 @@ def load_metadata(metadata_csv):
                     "brand": (row.get("brand") or "").strip(),
                     "category": (row.get("category") or "").strip(),
                     "product_line": (row.get("product_line") or "").strip(),
+                    "name": (row.get("name") or "").strip(),
                 }
     logger.info(f"Loaded metadata for {len(metadata)} barcodes from {metadata_csv}")
     return metadata
 
 
 def scan_dataset(dataset_root):
-    """扫描 train/val/test split，返回 {split: {class_name: n_images}}。"""
+    """扫描 train/val/test split，返回 {split: {class_name: n_images}}。
+
+    若不存在 split 子目录（如 sku100wdata 风格：root 下直接是类目目录，
+    split 由 prepare_sku_dataset.py 生成的 npy 虚拟划分），退化为扫描 root
+    本身并整体记为 train split。
+    """
+    has_splits = any(osp.isdir(osp.join(dataset_root, s)) for s in SPLITS)
+    scan_roots = (
+        {s: osp.join(dataset_root, s) for s in SPLITS}
+        if has_splits
+        else {"train": dataset_root}
+    )
     split_classes = {}
-    for split in SPLITS:
-        split_dir = osp.join(dataset_root, split)
+    for split, split_dir in scan_roots.items():
         classes = {}
         if not osp.isdir(split_dir):
             logger.warning(f"split dir not found, skipped: {split_dir}")
@@ -139,10 +150,14 @@ def build_record(class_name, metadata):
     """生成单条层级记录。"""
     _, barcode, product_name = split_class_name(class_name)
     variant_id = barcode if barcode else class_name
-    brand = parse_brand(product_name)
-    category = ""
 
     meta = metadata.get(barcode) if barcode else None
+    if meta is not None and not product_name:
+        # 类目名为纯 barcode 时，用元数据中的商品名做 brand/product_line 推导
+        product_name = meta.get("name", "")
+
+    brand = parse_brand(product_name)
+    category = ""
     if meta is not None:
         brand = meta["brand"] or brand
         category = meta["category"]
