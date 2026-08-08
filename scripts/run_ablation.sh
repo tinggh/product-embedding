@@ -11,21 +11,25 @@
 #
 # 环境变量：
 #   PY REPO DATASET_ROOT NPY_DIR CKPT HIERARCHY PROBE_ROOT WORK_DIR  必设
-#   GPUS        逗号分隔 GPU 列表（默认 "0"），实验按卡轮询分配、卡间并行
-#   EPOCHS      短跑 epoch 数（默认 8）
-#   ITERS       每 epoch 最大 iter（默认 1500）
+#   GPUS        逗号分隔 GPU 列表（默认 "0"），每个实验独占 1 卡、卡间并行
+#   EPOCHS      训练 epoch 数（默认 100，完整训练）
+#   ITERS       每 epoch 最大 iter（默认 0 = 完整 epoch；仅快速冒烟时设值）
+#   MILESTONES  lr 衰减里程碑（默认 "30,60,90"，应随 EPOCHS 调整）
+#   SAVE_INTERVAL 评估/保存间隔（默认 10）
 #   SKIP        逗号分隔要跳过的实验名（如 "full"——已有正式全量跑时）
 #   LD_PRELOAD_LIB  nvJitLink 修复
 #
-# 产物：$WORK_DIR/ablation/<name>/（训练 ckpt + log）与 <name>_report.json/.md
+# 产物：$WORK_DIR/ablation/<name>/（训练 ckpt + train.log + app.log）与 <name>_report.json/.md
 set -euo pipefail
 
 PY="${PY:?}"; REPO="${REPO:?}"; DATASET_ROOT="${DATASET_ROOT:?}"; NPY_DIR="${NPY_DIR:?}"
 CKPT="${CKPT:?}"; PROBE_ROOT="${PROBE_ROOT:?}"; WORK_DIR="${WORK_DIR:?}"
 HIERARCHY="${HIERARCHY:-}"
 GPUS="${GPUS:-0}"
-EPOCHS="${EPOCHS:-8}"
-ITERS="${ITERS:-1500}"
+EPOCHS="${EPOCHS:-100}"
+ITERS="${ITERS:-0}"
+MILESTONES="${MILESTONES:-30,60,90}"
+SAVE_INTERVAL="${SAVE_INTERVAL:-10}"
 SKIP="${SKIP:-}"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
@@ -64,7 +68,8 @@ run_one() {
         --pooling cls+gem --unfreeze_last 24 \
         --aug color_preserving --hue 0.02 --consistency_lambda 0.5 \
         --batchsize 96 --accum_steps 3 --num_workers 12 \
-        --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" --save_interval 4 \
+        --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
+        --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
         "${hard[@]}" $(extra_args_for "$name") \
         > "$out/train.log" 2>&1
     echo "[gpu $gpu] train done $name, probing"

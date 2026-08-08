@@ -302,7 +302,8 @@ def train_distributed(opt, args):
     model = DDP(model, device_ids=[local_rank], broadcast_buffers=False)
 
     optimizer = torch.optim.AdamW(param_groups, weight_decay=opt.weight_decay)
-    scheduler = MultiStepLR(optimizer, milestones=[30, 60, 90], gamma=0.1)
+    milestones = [int(m) for m in args.lr_milestones.split(",") if m.strip()]
+    scheduler = MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
 
     start_epoch = 0
     if args.resume_path:
@@ -549,6 +550,10 @@ def parse_args():
     parser.add_argument(
         "--max_iters_per_epoch", type=int, default=0,
         help="每 epoch 最大迭代数（0=完整 epoch；消融短跑用，如 1500）",
+    )
+    parser.add_argument(
+        "--lr_milestones", default="30,60,90",
+        help="MultiStepLR 衰减里程碑（逗号分隔 epoch），应随 max_epoch 调整",
     )
     args = parser.parse_args()
     return args
