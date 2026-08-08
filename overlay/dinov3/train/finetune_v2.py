@@ -236,16 +236,24 @@ def train_distributed(opt, args):
             train_dataset, num_replicas=world_size, rank=rank, shuffle=True
         )
 
-    trainloader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=None if batch_sampler else opt.batchsize,
-        batch_sampler=batch_sampler,
-        shuffle=False,
-        num_workers=opt.num_workers,
-        sampler=train_sampler,
-        pin_memory=True,
-        drop_last=True,
-    )
+    if batch_sampler is not None:
+        # batch_sampler 与 batch_size/shuffle/sampler/drop_last 互斥，只能单独传
+        trainloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_sampler=batch_sampler,
+            num_workers=opt.num_workers,
+            pin_memory=True,
+        )
+    else:
+        trainloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=opt.batchsize,
+            shuffle=False,
+            num_workers=opt.num_workers,
+            sampler=train_sampler,
+            pin_memory=True,
+            drop_last=True,
+        )
 
     class_ids = train_dataset._get_class_ids()
     num_classes = len(class_ids)
