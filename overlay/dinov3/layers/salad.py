@@ -39,9 +39,12 @@ def get_matching_probs(S, dustbin_score=1.0, num_iters=3, reg=1.0):
     """sinkhorn"""
     batch_size, m, n = S.size()
     # augment scores matrix
-    S_aug = torch.empty(batch_size, m + 1, n, dtype=S.dtype, device=S.device)
-    S_aug[:, :m, :n] = S
-    S_aug[:, m, :] = dustbin_score
+    # torch.cat 替代官方实现的 torch.empty + in-place 切片赋值，
+    # 数值等价且对 ONNX trace / TensorRT 导出更友好
+    if not torch.is_tensor(dustbin_score):
+        dustbin_score = torch.tensor(dustbin_score, dtype=S.dtype, device=S.device)
+    dustbin_row = dustbin_score.to(dtype=S.dtype, device=S.device).expand(batch_size, 1, n)
+    S_aug = torch.cat([S, dustbin_row], dim=1)
 
     # prepare normalized source and target log-weights
     norm = -torch.tensor(math.log(n + m), device=S.device)
