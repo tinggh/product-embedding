@@ -83,10 +83,17 @@ class HardNegativeBatchSampler(Sampler):
         batch = [self._sample_class_indices(rng, c, k) for c in chosen]
         return np.concatenate(batch)
 
+    def _num_batches(self) -> int:
+        # pad 到 num_replicas 的整数倍：保证所有 rank 迭代次数完全一致，
+        # 否则总 batch 数为奇数时 rank0 多跑 1 个迭代，DDP 集合通信错位，
+        # epoch 末 watchdog 超时 SIGABRT（与 DistributedSampler 的 padding 同理）
+        n = (len(self._targets) + self._batch_size - 1) // self._batch_size
+        r = self._num_replicas
+        return ((n + r - 1) // r) * r
+
     def __iter__(self):
         rng = np.random.default_rng(self._seed + self._epoch)
-        num_batches = (len(self._targets) + self._batch_size - 1) // self._batch_size
-        for i in range(num_batches):
+        for i in range(self._num_batches()):
             if i % self._num_replicas == self._rank:
                 yield self._make_batch(rng).tolist()
             else:
@@ -94,8 +101,7 @@ class HardNegativeBatchSampler(Sampler):
                 self._make_batch(rng)
 
     def __len__(self):
-        num_batches = (len(self._targets) + self._batch_size - 1) // self._batch_size
-        return (num_batches + self._num_replicas - 1 - self._rank) // self._num_replicas
+        return self._num_batches() // self._num_replicas
 
     def set_epoch(self, epoch: int):
         self._epoch = epoch
