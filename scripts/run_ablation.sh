@@ -21,6 +21,7 @@
 #   MILESTONES  lr 衰减里程碑（默认 "30,60,90"，应随 EPOCHS 调整）
 #   SAVE_INTERVAL 评估/保存间隔（默认 10）
 #   SKIP        逗号分隔要跳过的实验名（如 "full"——已有正式全量跑时）
+#   PORT_BASE   torchrun master_port 起始值（默认 29700，冲突时改）
 #   LD_PRELOAD_LIB  nvJitLink 修复
 #
 # 产物：$WORK_DIR/ablation/<name>/（训练 ckpt + train.log + app.log）与 <name>_report.json/.md
@@ -101,7 +102,7 @@ run_one() {
 IFS=';' read -ra GPU_ARR <<< "$GPU_GROUPS"
 IFS=',' read -ra SKIP_ARR <<< "$SKIP"
 declare -A GPU_JOBS
-port=29700
+port="${PORT_BASE:-29700}"
 for name in "${NAMES[@]}"; do
     skip=0
     for s in "${SKIP_ARR[@]}"; do [ "$s" == "$name" ] && skip=1; done
