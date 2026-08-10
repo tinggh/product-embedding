@@ -8,6 +8,8 @@
 #   arcface      单中心 ArcFace         → 验证 Sub-center+Center（E3）
 #   cls_pool     无双视图一致性 + CLS   → 验证一致性损失与 GeM（E4）
 #   no_hardneg   无硬负样本采样         → 验证层级硬负挖掘（E5）
+#   g2m          CLS + G2M 双均值池化    → 对比 GeM 聚合头（E6）
+#   salad        SALAD Sinkhorn 局部聚合 → 对比 GeM 聚合头（E7）
 #
 # 环境变量：
 #   PY REPO DATASET_ROOT NPY_DIR CKPT HIERARCHY PROBE_ROOT WORK_DIR  必设
@@ -36,7 +38,7 @@ SKIP="${SKIP:-}"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
-NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg)
+NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg g2m salad)
 
 extra_args_for() {
     case "$1" in
@@ -46,6 +48,18 @@ extra_args_for() {
         arcface)     echo "--loss arcface" ;;
         cls_pool)    echo "--consistency_lambda 0 --pooling cls" ;;
         no_hardneg)  echo "" ;;
+        g2m)         echo "--pooling cls+g2m" ;;
+        salad)       echo "--pooling salad" ;;
+    esac
+}
+
+# 探针评测的 pooling 必须与该实验训练时的 pooling 一致，否则 state_dict 结构不匹配
+probe_pooling_for() {
+    case "$1" in
+        cls_pool)    echo "cls" ;;
+        g2m)         echo "cls+g2m" ;;
+        salad)       echo "salad" ;;
+        *)           echo "cls+gem" ;;
     esac
 }
 
@@ -79,7 +93,7 @@ run_one() {
     echo "[gpu $gpu] train done $name, probing"
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m app.probe_eval \
         --probe_root "$PROBE_ROOT" --ckpt "$out/best.pth" \
-        --output "$WORK_DIR/ablation/${name}_report" --pooling cls+gem \
+        --output "$WORK_DIR/ablation/${name}_report" --pooling "$(probe_pooling_for "$name")" \
         > "$out/probe.log" 2>&1 || echo "[gpu $gpu] probe FAILED $name"
     echo "[gpu $gpu] done $name"
 }

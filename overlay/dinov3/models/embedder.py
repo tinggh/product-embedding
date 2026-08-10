@@ -12,8 +12,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from dinov3.layers.g2m import G2M
 from dinov3.layers.gem import GeM
+from dinov3.layers.salad import SALAD
 from dinov3.models.vision_transformer import vit_large
+
+POOLING_CHOICES = ("cls", "gem", "cls+gem", "cls+g2m", "salad")
 
 
 class ProductEmbedder(nn.Module):
@@ -23,26 +27,40 @@ class ProductEmbedder(nn.Module):
         "cls"      — 仅 CLS token（等价于旧行为，投影头为 Identity）
         "gem"      — 仅 GeM(patch tokens)
         "cls+gem"  — 拼接 CLS 与 GeM(patch) 后经 Linear 投影回 embed_dim
+        "cls+g2m"  — 拼接 CLS 与 G2M(patch) 后经 Linear 投影回 embed_dim
+        "salad"    — SALAD 局部聚合(patch, cls) 后经 Linear 投影回 embed_dim
     """
 
     def __init__(self, backbone: nn.Module, embed_dim: int = 1024, pooling: str = "cls+gem"):
         super().__init__()
-        assert pooling in ("cls", "gem", "cls+gem"), f"unknown pooling: {pooling}"
+        assert pooling in POOLING_CHOICES, f"unknown pooling: {pooling}"
         self.backbone = backbone
         self.pooling = pooling
         self.gem = GeM(p=3.0) if "gem" in pooling else None
-        in_dim = embed_dim * 2 if pooling == "cls+gem" else embed_dim
-        self.proj = nn.Linear(in_dim, embed_dim) if pooling == "cls+gem" else nn.Identity()
+        self.g2m = G2M(p=3.0) if "g2m" in pooling else None
+        self.salad = SALAD(num_channels=embed_dim) if pooling == "salad" else None
+        if pooling in ("cls+gem", "cls+g2m"):
+            in_dim = embed_dim * 2
+        elif pooling == "salad":
+            in_dim = self.salad.descriptor_dim
+        else:
+            in_dim = embed_dim
+        self.proj = nn.Linear(in_dim, embed_dim) if pooling in ("cls+gem", "cls+g2m", "salad") else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.backbone(x, is_training=True)
         cls_token = out["x_norm_clstoken"]
+        patch_tokens = out["x_norm_patchtokens"]
         if self.pooling == "cls":
             feat = cls_token
         elif self.pooling == "gem":
-            feat = self.gem(out["x_norm_patchtokens"])
+            feat = self.gem(patch_tokens)
+        elif self.pooling == "cls+g2m":
+            feat = torch.cat([cls_token, self.g2m(patch_tokens)], dim=-1)
+        elif self.pooling == "salad":
+            feat = self.salad(patch_tokens, cls_token)
         else:
-            feat = torch.cat([cls_token, self.gem(out["x_norm_patchtokens"])], dim=-1)
+            feat = torch.cat([cls_token, self.gem(patch_tokens)], dim=-1)
         return F.normalize(self.proj(feat), p=2, dim=-1)
 
     def backbone_param_groups(self, base_lr: float, llrd: float, unfreeze_last: int):
@@ -85,6 +103,10 @@ class ProductEmbedder(nn.Module):
         params = list(self.proj.parameters())
         if self.gem is not None:
             params += list(self.gem.parameters())
+        if self.g2m is not None:
+            params += list(self.g2m.parameters())
+        if self.salad is not None:
+            params += list(self.salad.parameters())
         return params
 
 

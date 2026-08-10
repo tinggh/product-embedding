@@ -340,7 +340,7 @@ def parse_args():
     parser.add_argument("--probe_root", required=True, help="probe root directory")
     parser.add_argument("--ckpt", required=True, help="model checkpoint path")
     parser.add_argument("--output", default="report", help="output report basename (writes .md/.json)")
-    parser.add_argument("--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem"],
+    parser.add_argument("--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem", "cls+g2m", "salad"],
                         help="pooling mode for ProductEmbedder checkpoints")
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")

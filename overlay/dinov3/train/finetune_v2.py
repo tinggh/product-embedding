@@ -503,7 +503,7 @@ def parse_args():
     parser.add_argument("--train", action="store_true", help="whether train or test")
     # ---- 模型与解冻 ----
     parser.add_argument(
-        "--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem"],
+        "--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem", "cls+g2m", "salad"],
         help="嵌入池化方式（cls = 旧行为）",
     )
     parser.add_argument(
@@ -539,7 +539,7 @@ def parse_args():
     )
     parser.add_argument("--hard_ratio", type=float, default=0.5, help="硬负样本 batch 比例")
     # ---- 训练超参 CLI 覆盖（默认 None 时用 opt dataclass 值） ----
-    parser.add_argument("--max_epoch", type=int, default=None)
+    parser.add_argument("--max_epoch", type=int, default=40)
     parser.add_argument("--batchsize", type=int, default=None, help="per-GPU batch")
     parser.add_argument("--accum_steps", type=int, default=None)
     parser.add_argument("--num_workers", type=int, default=None)
