@@ -22,9 +22,14 @@
 #   SAVE_INTERVAL 评估/保存间隔（默认 10）
 #   SKIP        逗号分隔要跳过的实验名（如 "full"——已有正式全量跑时）
 #   PORT_BASE   torchrun master_port 起始值（默认 29700，冲突时改）
+#   RESUME      auto（默认）= 输出目录有 vitl_epoch_*.pth 时自动断点续训；
+#               off = 忽略已有 ckpt 从头训练
+#   OUT_SUBDIR  输出子目录名（默认 ablation）；冒烟/试验跑设成别的值
+#               （如 ablation_smoke），避免短跑 ckpt 被正式跑误 resume
 #   LD_PRELOAD_LIB  nvJitLink 修复
 #
-# 产物：$WORK_DIR/ablation/<name>/（训练 ckpt + train.log + app.log）与 <name>_report.json/.md
+# 产物：$WORK_DIR/$OUT_SUBDIR/<name>/（训练 ckpt + train.log + app.log）与 <name>_report.json/.md
+# 幂等：最新 ckpt 已达 EPOCHS 的实验会跳过训练直接重新探针评测。
 set -euo pipefail
 
 PY="${PY:?}"; REPO="${REPO:?}"; DATASET_ROOT="${DATASET_ROOT:?}"; NPY_DIR="${NPY_DIR:?}"
@@ -36,6 +41,9 @@ ITERS="${ITERS:-0}"
 MILESTONES="${MILESTONES:-30,60,90}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-10}"
 SKIP="${SKIP:-}"
+RESUME="${RESUME:-auto}"
+OUT_SUBDIR="${OUT_SUBDIR:-ablation}"
+ABL_DIR="$WORK_DIR/$OUT_SUBDIR"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
@@ -66,7 +74,7 @@ probe_pooling_for() {
 
 run_one() {
     local name="$1" gpu="$2" port="$3"
-    local out="$WORK_DIR/ablation/$name"
+    local out="$ABL_DIR/$name"
     local ngpu
     ngpu=$(awk -F',' '{print NF}' <<< "$gpu")
     mkdir -p "$out"
@@ -76,34 +84,42 @@ run_one() {
     fi
     echo "[gpu $gpu] start $name"
     cd "$REPO"
-    # 断点续训：输出目录里已有 vitl_epoch_*.pth 时从最新一个恢复
-    # （训练未完成时）；已完成 40 epoch 的实验应通过 SKIP 排除
-    local resume=()
-    local latest
+    # 断点续训（RESUME=auto）：输出目录里有 vitl_epoch_*.pth 时从最新一个恢复；
+    # 最新 ckpt 已达 EPOCHS 说明训练已完成，跳过训练直接重新探针评测
+    local latest latest_epoch
     latest=$(ls -v "$out"/vitl_epoch_*.pth 2>/dev/null | tail -1)
+    latest_epoch=-1
     if [ -n "$latest" ]; then
-        resume=(--resume_path "$latest")
-        echo "[gpu $gpu] resume $name from $latest"
+        latest_epoch=$(basename "$latest" .pth | sed 's/vitl_epoch_//')
     fi
-    export DINOV3_RUN_LOG="$out/app.log"
-    # shellcheck disable=SC2086
-    CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m torch.distributed.run \
-        --nproc_per_node="$ngpu" --master_port="$port" \
-        dinov3/train/finetune_v2.py --train \
-        --dataset_root "$DATASET_ROOT" --dataset_extra "$NPY_DIR" \
-        --ckpt_path "$CKPT" --output_dir "$out" \
-        --loss subcenter --num_subcenters 3 --center_lambda 0.5 \
-        --pooling cls+gem --unfreeze_last 24 \
-        --aug color_preserving --hue 0.02 --consistency_lambda 0.5 \
-        --batchsize 96 --accum_steps 3 --num_workers 12 \
-        --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
-        --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
-        "${hard[@]}" "${resume[@]}" $(extra_args_for "$name") \
-        >> "$out/train.log" 2>&1
-    echo "[gpu $gpu] train done $name, probing"
+    if [ "$latest_epoch" -ge 0 ] && [ $((latest_epoch + 1)) -ge "$EPOCHS" ]; then
+        echo "[gpu $gpu] $name already trained (epoch $latest_epoch), skip to probe"
+    else
+        local resume=()
+        if [ "$RESUME" == "auto" ] && [ -n "$latest" ]; then
+            resume=(--resume_path "$latest")
+            echo "[gpu $gpu] resume $name from $latest"
+        fi
+        export DINOV3_RUN_LOG="$out/app.log"
+        # shellcheck disable=SC2086
+        CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m torch.distributed.run \
+            --nproc_per_node="$ngpu" --master_port="$port" \
+            dinov3/train/finetune_v2.py --train \
+            --dataset_root "$DATASET_ROOT" --dataset_extra "$NPY_DIR" \
+            --ckpt_path "$CKPT" --output_dir "$out" \
+            --loss subcenter --num_subcenters 3 --center_lambda 0.5 \
+            --pooling cls+gem --unfreeze_last 24 \
+            --aug color_preserving --hue 0.02 --consistency_lambda 0.5 \
+            --batchsize 96 --accum_steps 3 --num_workers 12 \
+            --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
+            --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
+            "${hard[@]}" "${resume[@]}" $(extra_args_for "$name") \
+            >> "$out/train.log" 2>&1
+        echo "[gpu $gpu] train done $name, probing"
+    fi
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m app.probe_eval \
         --probe_root "$PROBE_ROOT" --ckpt "$out/best.pth" \
-        --output "$WORK_DIR/ablation/${name}_report" --pooling "$(probe_pooling_for "$name")" \
+        --output "$ABL_DIR/${name}_report" --pooling "$(probe_pooling_for "$name")" \
         > "$out/probe.log" 2>&1 || echo "[gpu $gpu] probe FAILED $name"
     echo "[gpu $gpu] done $name"
 }
@@ -143,6 +159,6 @@ for pid in "${pids[@]}"; do wait "$pid"; done
 
 echo "all ablations done, collecting reports"
 "$PY" "$(dirname "${BASH_SOURCE[0]}")/collect_reports.py" \
-    --report_glob "$WORK_DIR/ablation/*_report.json" \
-    --output "$WORK_DIR/ablation/comparison.md"
-echo "comparison -> $WORK_DIR/ablation/comparison.md"
+    --report_glob "$ABL_DIR/*_report.json" \
+    --output "$ABL_DIR/comparison.md"
+echo "comparison -> $ABL_DIR/comparison.md"
