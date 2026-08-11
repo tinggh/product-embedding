@@ -1,8 +1,9 @@
-"""为 SKU 名称补充规格（如 500ml / 90g），解决大量同名商品无法区分的问题。
+"""为 SKU 信息补充规格（如 500ml / 90g），解决大量同名商品无法区分的问题。
 
-从商品主数据构建 ean -> 规格 查找表（多数据源按优先级合并），
-对名称中尚不含规格的商品，把规格追加到名称末尾：
-    依云天然矿泉水 -> 依云天然矿泉水500ml
+从商品主数据构建 ean -> 规格 查找表（多数据源按优先级合并），两种模式：
+    --mode spec_column（默认）：新增 spec 列，不修改商品名称；
+        名称本身含规格的（如 依云天然矿泉水500ml）也会提取填入 spec 列。
+    --mode append_name：把规格追加到名称末尾（仅当名称不含规格时）。
 
 数据源（后者优先）：
     1. 2186.csv                              (ean, specification)
@@ -84,31 +85,56 @@ def build_merged_lut(datasets_root):
     return merged
 
 
-def update_csv(path, ean_col, name_col, spec_lut, dry_run=False):
+def update_csv(path, ean_col, name_col, spec_lut, mode="spec_column", dry_run=False):
     with open(path, encoding="utf-8-sig", errors="replace", newline="") as f:
         reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
+        fieldnames = list(reader.fieldnames)
         rows = list(reader)
+
+    if mode == "spec_column" and "spec" not in fieldnames:
+        fieldnames.append("spec")
 
     n_named = n_had = n_filled = 0
     for r in rows:
         name = (r.get(name_col) or "").strip()
         if not name:
+            if mode == "spec_column":
+                r.setdefault("spec", "")
             continue
         n_named += 1
-        if SPEC_RE.search(name):
-            n_had += 1
-            continue
+        # 优先主数据查找表；名称本身含规格时从名称提取兜底
         spec = spec_lut.get((r.get(ean_col) or "").strip(), "")
-        if spec:
-            r[name_col] = name + spec
-            n_filled += 1
+        m = SPEC_RE.search(name)
+        if not spec and m:
+            spec = m.group(0)
+        if m:
+            n_had += 1
+        if mode == "append_name":
+            if not m and spec:
+                r[name_col] = name + spec
+                n_filled += 1
+        else:  # spec_column：不改名称，只写 spec 列
+            if spec and not r.get("spec"):
+                r["spec"] = spec
+                if not m:
+                    n_filled += 1
 
-    print(
-        f"{os.path.basename(path)}: named={n_named} 名称已有规格={n_had} "
-        f"本次补充={n_filled} 仍无规格={n_named - n_had - n_filled}"
-    )
-    if dry_run or n_filled == 0:
+    if mode == "spec_column":
+        n_with_spec = sum(1 for r in rows if (r.get("spec") or "").strip())
+        print(
+            f"{os.path.basename(path)}: named={n_named} 名称本身含规格={n_had} "
+            f"spec 列有值={n_with_spec}（其中名称不含、由主数据补充={n_filled}）"
+        )
+    else:
+        print(
+            f"{os.path.basename(path)}: named={n_named} 名称已有规格={n_had} "
+            f"本次补充={n_filled} 仍无规格={n_named - n_had - n_filled}"
+        )
+    if dry_run:
+        return
+    if mode == "spec_column" and n_with_spec == 0:
+        return
+    if mode == "append_name" and n_filled == 0:
         return
     if not os.path.isfile(path + ".bak"):
         shutil.copy2(path, path + ".bak")
@@ -126,13 +152,17 @@ def main():
         "--targets", nargs="+", required=True,
         help="目标 csv，格式 path:ean_col:name_col",
     )
+    parser.add_argument(
+        "--mode", choices=["spec_column", "append_name"], default="spec_column",
+        help="spec_column: 新增 spec 列不改名称（默认）；append_name: 把规格追加到名称末尾",
+    )
     parser.add_argument("--dry_run", action="store_true")
     args = parser.parse_args()
 
     spec_lut = build_merged_lut(args.datasets_root)
     for t in args.targets:
         path, ean_col, name_col = t.rsplit(":", 2)
-        update_csv(path, ean_col, name_col, spec_lut, dry_run=args.dry_run)
+        update_csv(path, ean_col, name_col, spec_lut, mode=args.mode, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
