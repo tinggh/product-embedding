@@ -105,14 +105,29 @@ def make_occluded(src_path, dst_path, rng):
     img.save(dst_path, quality=95)
 
 
+def _to_jpeg_b64(path):
+    """读图并重编码为 JPEG base64。
+
+    服务端用 turbojpeg 解码，只认 JPEG；数据集里混有 PNG/WebP，
+    直接透传原始字节会让整批推理失败，这里统一用 PIL 重编码。
+    """
+    from io import BytesIO
+    img = Image.open(path).convert("RGB")
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def extract_features(feature_url, images, req_batch=64, timeout=600):
     """调用 feature_extractor FastAPI 服务批量提特征。
 
     images: [(key, abs_path), ...]，返回 {key: np.ndarray}。
     接口见 feature_extractor/app/tests/test_fastapi.py。
+    解码失败的图片跳过（不计入返回）。
     """
     feats = {}
     pending = []
+    n_bad = 0
 
     with requests.Session() as session:
         def flush():
@@ -138,11 +153,18 @@ def extract_features(feature_url, images, req_batch=64, timeout=600):
             print(f"  features: {len(feats)}/{len(images)}", flush=True)
 
         for key, path in images:
-            with open(path, "rb") as f:
-                pending.append((key, base64.b64encode(f.read()).decode("ascii")))
+            try:
+                b64 = _to_jpeg_b64(path)
+            except Exception as e:
+                n_bad += 1
+                print(f"  skip undecodable image {path}: {e}", flush=True)
+                continue
+            pending.append((key, b64))
             if len(pending) >= req_batch:
                 flush()
         flush()
+    if n_bad:
+        print(f"  skipped {n_bad} undecodable images")
     return feats
 
 
