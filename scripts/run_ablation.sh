@@ -76,6 +76,15 @@ run_one() {
     fi
     echo "[gpu $gpu] start $name"
     cd "$REPO"
+    # 断点续训：输出目录里已有 vitl_epoch_*.pth 时从最新一个恢复
+    # （训练未完成时）；已完成 40 epoch 的实验应通过 SKIP 排除
+    local resume=()
+    local latest
+    latest=$(ls -v "$out"/vitl_epoch_*.pth 2>/dev/null | tail -1)
+    if [ -n "$latest" ]; then
+        resume=(--resume_path "$latest")
+        echo "[gpu $gpu] resume $name from $latest"
+    fi
     export DINOV3_RUN_LOG="$out/app.log"
     # shellcheck disable=SC2086
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m torch.distributed.run \
@@ -89,8 +98,8 @@ run_one() {
         --batchsize 96 --accum_steps 3 --num_workers 12 \
         --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
         --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
-        "${hard[@]}" $(extra_args_for "$name") \
-        > "$out/train.log" 2>&1
+        "${hard[@]}" "${resume[@]}" $(extra_args_for "$name") \
+        >> "$out/train.log" 2>&1
     echo "[gpu $gpu] train done $name, probing"
     CUDA_VISIBLE_DEVICES="$gpu" PYTHONPATH="$REPO" "$PY" -m app.probe_eval \
         --probe_root "$PROBE_ROOT" --ckpt "$out/best.pth" \
