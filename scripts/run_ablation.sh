@@ -87,7 +87,8 @@ run_one() {
     # 断点续训（RESUME=auto）：输出目录里有 vitl_epoch_*.pth 时从最新一个恢复；
     # 最新 ckpt 已达 EPOCHS 说明训练已完成，跳过训练直接重新探针评测
     local latest latest_epoch
-    latest=$(ls -v "$out"/vitl_epoch_*.pth 2>/dev/null | tail -1)
+    # 注意：目录无 ckpt 时 ls 失败，pipefail 会让赋值以非零退出触发 set -e，必须 || true
+    latest=$(ls -v "$out"/vitl_epoch_*.pth 2>/dev/null | tail -1 || true)
     latest_epoch=-1
     if [ -n "$latest" ]; then
         latest_epoch=$(basename "$latest" .pth | sed 's/vitl_epoch_//')
@@ -155,7 +156,7 @@ for g in "${GPU_ARR[@]}"; do
     ) &
     pids+=($!)
 done
-for pid in "${pids[@]}"; do wait "$pid"; done
+for pid in "${pids[@]}"; do wait "$pid" || echo "[warn] a GPU group exited non-zero"; done
 
 echo "all ablations done, collecting reports"
 "$PY" "$(dirname "${BASH_SOURCE[0]}")/collect_reports.py" \
