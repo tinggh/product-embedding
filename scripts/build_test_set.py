@@ -90,15 +90,58 @@ def make_center_crop(src_path, dst_path, rng, scale_range=(0.4, 0.6)):
     img.crop((x0, y0, x0 + cw, y0 + ch)).save(dst_path, quality=95)
 
 
+def _foreground_mask(arr, border=6):
+    """用四周边缘像素估计背景色，前景 = 与背景颜色差异显著的区域。
+
+    商品图背景通常是大面积纯色（白/灰/货架），边缘取 6px 带估计背景均值与
+    离散度，逐像素与背景的色差超过阈值即判为前景。返回 bool 掩码 (H, W)。
+    """
+    b = np.concatenate([
+        arr[:border].reshape(-1, 3), arr[-border:].reshape(-1, 3),
+        arr[:, :border].reshape(-1, 3), arr[:, -border:].reshape(-1, 3),
+    ]).astype(np.float32)
+    bg = b.mean(axis=0)
+    bg_spread = float(b.std(axis=0).mean())
+    diff = np.abs(arr.astype(np.float32) - bg).mean(axis=2)
+    return diff > max(3.0 * bg_spread, 20.0)
+
+
+def _pick_occl_box(fg, bw, bh, rng, tries=30, min_overlap=0.4):
+    """在前景上选遮挡框位置：候选框锚定在随机前景像素上（保证压住商品），
+    取前景覆盖率最高者，达到 min_overlap 即提前返回；无前景时退回中心区。"""
+    h, w = fg.shape
+    ys, xs = np.nonzero(fg)
+    if len(xs) == 0:
+        cx = max(0, min(w - bw, (w - bw) // 2 + rng.randint(-w // 8, w // 8)))
+        cy = max(0, min(h - bh, (h - bh) // 2 + rng.randint(-h // 8, h // 8)))
+        return cx, cy
+    best, best_ov = None, -1.0
+    for _ in range(tries):
+        i = rng.randrange(len(xs))
+        x0 = min(max(int(xs[i]) - rng.randint(0, bw - 1), 0), w - bw)
+        y0 = min(max(int(ys[i]) - rng.randint(0, bh - 1), 0), h - bh)
+        ov = float(fg[y0 : y0 + bh, x0 : x0 + bw].mean())
+        if ov > best_ov:
+            best, best_ov = (x0, y0), ov
+        if ov >= min_overlap:
+            return best
+    return best
+
+
 def make_occluded(src_path, dst_path, rng):
+    """原图 + 前景感知遮挡 + 亮度扰动（P4 合成代理）。
+
+    遮挡块要求落在商品前景上（与背景色差大的区域），避免随机遮挡只盖住
+    背景、对特征提取没有实际挑战的问题。
+    """
     img = Image.open(src_path).convert("RGB")
     w, h = img.size
     arr = np.asarray(img).copy()
+    fg = _foreground_mask(arr)
     for _ in range(rng.randint(1, 3)):
         bw = rng.randint(w // 8, w // 3)
         bh = rng.randint(h // 8, h // 3)
-        x0 = rng.randint(0, w - bw)
-        y0 = rng.randint(0, h - bh)
+        x0, y0 = _pick_occl_box(fg, bw, bh, rng)
         arr[y0 : y0 + bh, x0 : x0 + bw] = rng.randint(180, 255)
     img = Image.fromarray(arr)
     img = ImageEnhance.Brightness(img).enhance(rng.uniform(0.7, 1.2))
@@ -281,9 +324,23 @@ def main():
                         help="单次 predict 请求的图片数")
     parser.add_argument("--only_p1", action="store_true",
                         help="仅重建 output_dir/probe/p1_color_variant（复用已有 skus.csv）")
+    parser.add_argument("--redo_p4", action="store_true",
+                        help="按已有 p4 pairs.csv 重新合成遮挡图（img_a 不变，仅重写 img_b）")
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
+
+    # ---- redo_p4：按已有 pairs.csv 重新合成遮挡图 ----
+    if args.redo_p4:
+        p4_root = osp.join(args.output_dir, "probe", "p4_occlusion")
+        with open(osp.join(p4_root, "pairs.csv"), encoding="utf-8-sig") as f:
+            rows = [r for r in csv.reader(f) if r and r[0].startswith("images/")]
+        for img_a, img_b, *_ in rows:
+            src = osp.join(p4_root, img_a)  # images/ 下软链，指向数据集原图
+            dst = osp.join(p4_root, img_b)  # images/ 下之前合成的遮挡图（实文件，直接覆盖）
+            make_occluded(src, dst, rng)
+        print(f"p4_occlusion: 重新合成 {len(rows)} 张遮挡图（前景感知） -> {p4_root}/images")
+        return
 
     # ---- only_p1：复用已有 skus.csv，仅重建 P1 ----
     if args.only_p1:
