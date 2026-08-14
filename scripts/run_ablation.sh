@@ -42,6 +42,7 @@ MILESTONES="${MILESTONES:-30,60,90}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-10}"
 BATCHSIZE="${BATCHSIZE:-96}"
 ACCUM_STEPS="${ACCUM_STEPS:-3}"
+NUM_WORKERS="${NUM_WORKERS:-12}"
 SKIP="${SKIP:-}"
 RESUME="${RESUME:-auto}"
 OUT_SUBDIR="${OUT_SUBDIR:-ablation}"
@@ -126,7 +127,7 @@ run_one() {
             --loss subcenter --num_subcenters 3 --center_lambda 0.5 \
             --pooling cls+gem --unfreeze_last 24 \
             --aug color_preserving --hue 0.02 --consistency_lambda 0.5 \
-            --batchsize $BATCHSIZE --accum_steps $ACCUM_STEPS --num_workers 12 \
+            --batchsize $BATCHSIZE --accum_steps $ACCUM_STEPS --num_workers $NUM_WORKERS \
             --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
             --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
             "${hard[@]}" "${resume[@]}" $(extra_args_for "$name") \
