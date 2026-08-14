@@ -33,11 +33,14 @@ from dinov3.loss.arcface_loss import ArcFaceLoss
 from dinov3.loss.arcface_amp import ArcFaceLossAMP
 from dinov3.loss.subcenter_arcface_loss import SubCenterArcFaceWithCenterLoss
 from dinov3.loss.local_global_consistency import LocalGlobalConsistencyLoss
+from dinov3.loss.supcon_loss import SupConLoss
+from dinov3.loss.patch_nce_loss import PatchNCELoss
 from dinov3.data.transforms import ResizeWithRatio
 from dinov3.data.color_preserving_augs import (
     build_color_preserving_transform,
     build_eval_transform,
     DualViewTransform,
+    TripleViewTransform,
 )
 from dinov3.data.hard_negative_sampler import HardNegativeBatchSampler
 from dinov3.models.embedder import build_product_embedder
@@ -81,7 +84,7 @@ def setup_distributed():
 
 
 def build_train_transform(args):
-    """按 --aug 与 --consistency_lambda 构建训练变换（可能返回双视图）。"""
+    """按 --aug / --consistency_lambda / --patch_consistency_lambda 构建训练变换。"""
     if args.aug == "legacy":
         return transforms.Compose(
             [
@@ -94,6 +97,9 @@ def build_train_transform(args):
                 ),
             ]
         )
+    if args.patch_consistency_lambda > 0:
+        # E2b：三视图（全局 + 局部 + 零件），patch 级一致性需多视图
+        return TripleViewTransform(input_size=224, hue=args.hue)
     if args.consistency_lambda > 0:
         return DualViewTransform(input_size=224, hue=args.hue)
     return build_color_preserving_transform(input_size=224, hue=args.hue)
@@ -263,6 +269,12 @@ def train_distributed(opt, args):
     consistency_loss = (
         LocalGlobalConsistencyLoss() if args.consistency_lambda > 0 else None
     )
+    supcon_loss = SupConLoss() if args.supcon_lambda > 0 else None
+    patch_nce_loss = (
+        PatchNCELoss(temperature=args.patch_nce_temp, num_samples=args.patch_nce_samples)
+        if args.patch_consistency_lambda > 0 else None
+    )
+    need_patch = patch_nce_loss is not None
 
     val_dataset = RetailProduct(
         split=RetailProduct.Split.VAL,
@@ -338,24 +350,65 @@ def train_distributed(opt, args):
             views, label = data
             label = label.to(device, non_blocking=True).long()
 
-            # 双视图（局部-全局一致性）或单视图
-            if isinstance(views, (list, tuple)) and len(views) == 2 and torch.is_tensor(views[0]):
+            # 多视图：三视图（global+local+part）/ 双视图（global+local）/ 单视图
+            if isinstance(views, (list, tuple)) and len(views) == 3 and torch.is_tensor(views[0]):
                 img_global = views[0].to(device, non_blocking=True)
                 img_local = views[1].to(device, non_blocking=True)
+                img_part = views[2].to(device, non_blocking=True)
+            elif isinstance(views, (list, tuple)) and len(views) == 2 and torch.is_tensor(views[0]):
+                img_global = views[0].to(device, non_blocking=True)
+                img_local = views[1].to(device, non_blocking=True)
+                img_part = None
             else:
                 img_global = views.to(device, non_blocking=True)
                 img_local = None
+                img_part = None
 
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                emb_global = model(img_global)
+                out_global = model(img_global, return_patch=need_patch)
+                if need_patch:
+                    emb_global, patch_global = out_global
+                else:
+                    emb_global = out_global
                 loss, output = criterion(emb_global.float(), label)
+                # E1c：SupCon 在全局嵌入上补充变体对判别
+                if supcon_loss is not None:
+                    loss = loss + args.supcon_lambda * supcon_loss(emb_global.float(), label)
                 if img_local is not None:
-                    emb_local = model(img_local)
-                    # 局部视图同样参与分类（部分→同 SKU），再加全局-局部一致性
+                    out_local = model(img_local, return_patch=need_patch)
+                    if need_patch:
+                        emb_local, patch_local = out_local
+                    else:
+                        emb_local = out_local
+                    # 局部视图同样参与分类（部分→同 SKU）
                     loss_l, _ = criterion(emb_local.float(), label)
-                    loss = loss + loss_l + args.consistency_lambda * consistency_loss(
-                        emb_global.float(), emb_local.float()
-                    )
+                    loss = loss + loss_l
+                    # E2a：全局-局部图像级一致性
+                    if consistency_loss is not None:
+                        loss = loss + args.consistency_lambda * consistency_loss(
+                            emb_global.float(), emb_local.float()
+                        )
+                    # E2c：patch 级密集对比（global vs local）
+                    if patch_nce_loss is not None:
+                        loss = loss + args.patch_consistency_lambda * patch_nce_loss(
+                            patch_global.float(), patch_local.float()
+                        )
+                if img_part is not None:
+                    out_part = model(img_part, return_patch=need_patch)
+                    if need_patch:
+                        emb_part, patch_part = out_part
+                    else:
+                        emb_part = out_part
+                    loss_p, _ = criterion(emb_part.float(), label)
+                    loss = loss + loss_p
+                    if consistency_loss is not None:
+                        loss = loss + args.consistency_lambda * consistency_loss(
+                            emb_global.float(), emb_part.float()
+                        )
+                    if patch_nce_loss is not None:
+                        loss = loss + args.patch_consistency_lambda * patch_nce_loss(
+                            patch_global.float(), patch_part.float()
+                        )
                 loss = loss / opt.accum_steps
 
             loss.backward()
@@ -503,8 +556,8 @@ def parse_args():
     parser.add_argument("--train", action="store_true", help="whether train or test")
     # ---- 模型与解冻 ----
     parser.add_argument(
-        "--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem", "cls+g2m", "salad"],
-        help="嵌入池化方式（cls = 旧行为）",
+        "--pooling", default="cls+gem", choices=["cls", "gem", "cls+gem", "cls+g2m", "salad", "cls+gem+salad"],
+        help="嵌入池化方式（cls = 旧行为；cls+gem+salad = E1b 双头）",
     )
     parser.add_argument(
         "--unfreeze_last", type=int, default=24,
@@ -523,6 +576,16 @@ def parse_args():
         "--consistency_lambda", type=float, default=0.0,
         help="局部-全局一致性损失权重（>0 启用双视图训练）",
     )
+    parser.add_argument(
+        "--supcon_lambda", type=float, default=0.0,
+        help="监督对比损失权重（E1c，>0 启用 SupCon，补充 ArcFace 对变体对的判别）",
+    )
+    parser.add_argument(
+        "--patch_consistency_lambda", type=float, default=0.0,
+        help="patch 级一致性损失权重（E2c，>0 启用三视图 + PatchNCE）",
+    )
+    parser.add_argument("--patch_nce_temp", type=float, default=0.1, help="PatchNCE 温度")
+    parser.add_argument("--patch_nce_samples", type=int, default=32, help="PatchNCE 每图采样 patch 数")
     # ---- 增强 ----
     parser.add_argument(
         "--aug", default="color_preserving", choices=["legacy", "color_preserving"],

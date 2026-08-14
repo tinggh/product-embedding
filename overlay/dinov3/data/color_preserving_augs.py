@@ -160,3 +160,41 @@ class DualViewTransform:
 
     def __call__(self, img: Image.Image):
         return self.global_transform(img), self.local_transform(img)
+
+
+class TripleViewTransform:
+    """三视图变换（E2b）：全局 + 局部 + 零件裁剪。
+
+    返回 (global_tensor, local_tensor, part_tensor)。part 视图用极小裁剪范围
+    模拟「只看到商品零件/局部纹理」的查询条件，与 global/local 共同构成
+    多尺度一致性三元组，强化 P2(多视角)/P3(局部-整体) 一致性。
+    """
+
+    def __init__(self, input_size=224, local_scale=(0.15, 0.5),
+                 part_scale=(0.05, 0.2), hue=DEFAULT_HUE):
+        self.global_transform = build_color_preserving_transform(input_size, hue=hue)
+        self.local_transform = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(input_size, scale=local_scale),
+                transforms.RandomHorizontalFlip(),
+                _color_safe_jitter(hue),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            ]
+        )
+        self.part_transform = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(input_size, scale=part_scale),
+                transforms.RandomHorizontalFlip(),
+                _color_safe_jitter(hue),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+            ]
+        )
+
+    def __call__(self, img: Image.Image):
+        return (
+            self.global_transform(img),
+            self.local_transform(img),
+            self.part_transform(img),
+        )

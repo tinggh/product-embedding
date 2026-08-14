@@ -17,18 +17,20 @@ from dinov3.layers.gem import GeM
 from dinov3.layers.salad import SALAD
 from dinov3.models.vision_transformer import vit_large
 
-POOLING_CHOICES = ("cls", "gem", "cls+gem", "cls+g2m", "salad")
+POOLING_CHOICES = ("cls", "gem", "cls+gem", "cls+g2m", "salad", "cls+gem+salad")
 
 
 class ProductEmbedder(nn.Module):
     """DINOv3 backbone + 池化 + 投影头，输出 L2 归一化的商品嵌入。
 
     pooling:
-        "cls"      — 仅 CLS token（等价于旧行为，投影头为 Identity）
-        "gem"      — 仅 GeM(patch tokens)
-        "cls+gem"  — 拼接 CLS 与 GeM(patch) 后经 Linear 投影回 embed_dim
-        "cls+g2m"  — 拼接 CLS 与 G2M(patch) 后经 Linear 投影回 embed_dim
-        "salad"    — SALAD 局部聚合(patch, cls) 后经 Linear 投影回 embed_dim
+        "cls"           — 仅 CLS token（等价于旧行为，投影头为 Identity）
+        "gem"           — 仅 GeM(patch tokens)
+        "cls+gem"       — 拼接 CLS 与 GeM(patch) 后经 Linear 投影回 embed_dim
+        "cls+g2m"       — 拼接 CLS 与 G2M(patch) 后经 Linear 投影回 embed_dim
+        "salad"          — SALAD 局部聚合(patch, cls) 后经 Linear 投影回 embed_dim
+        "cls+gem+salad" — 双头：CLS+GeM 全局判别 + SALAD 局部一致性拼接后投影
+                          （E1b：兼顾 P1/P5 判别力与 P2/P3 一致性）
     """
 
     def __init__(self, backbone: nn.Module, embed_dim: int = 1024, pooling: str = "cls+gem"):
@@ -38,17 +40,17 @@ class ProductEmbedder(nn.Module):
         self.pooling = pooling
         self.gem = GeM(p=3.0) if "gem" in pooling else None
         self.g2m = G2M(p=3.0) if "g2m" in pooling else None
-        self.salad = SALAD(num_channels=embed_dim) if pooling == "salad" else None
+        self.salad = SALAD(num_channels=embed_dim) if "salad" in pooling else None
         if pooling in ("cls+gem", "cls+g2m"):
             in_dim = embed_dim * 2
-        elif pooling == "salad":
-            in_dim = self.salad.descriptor_dim
+        elif "salad" in pooling:
+            in_dim = (embed_dim * 2 if "gem" in pooling else 0) + self.salad.descriptor_dim
         else:
             in_dim = embed_dim
-        self.proj = nn.Linear(in_dim, embed_dim) if pooling in ("cls+gem", "cls+g2m", "salad") else nn.Identity()
+        self.proj = nn.Linear(in_dim, embed_dim) if pooling in ("cls+gem", "cls+g2m", "salad", "cls+gem+salad") else nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.backbone(x, is_training=True)
+    def _pool(self, out):
+        """从 backbone 输出字典提取投影前特征（供 forward / forward_features 复用）。"""
         cls_token = out["x_norm_clstoken"]
         patch_tokens = out["x_norm_patchtokens"]
         if self.pooling == "cls":
@@ -59,9 +61,24 @@ class ProductEmbedder(nn.Module):
             feat = torch.cat([cls_token, self.g2m(patch_tokens)], dim=-1)
         elif self.pooling == "salad":
             feat = self.salad(patch_tokens, cls_token)
+        elif self.pooling == "cls+gem+salad":
+            feat = torch.cat(
+                [cls_token, self.gem(patch_tokens), self.salad(patch_tokens, cls_token)],
+                dim=-1,
+            )
         else:
             feat = torch.cat([cls_token, self.gem(patch_tokens)], dim=-1)
-        return F.normalize(self.proj(feat), p=2, dim=-1)
+        return feat
+
+    def forward(self, x: torch.Tensor, return_patch: bool = False):
+        out = self.backbone(x, is_training=True)
+        feat = self._pool(out)
+        embedding = F.normalize(self.proj(feat), p=2, dim=-1)
+        if return_patch:
+            # 逐 patch L2 归一化，供 PatchNCE 等密集对比损失使用
+            patch_norm = F.normalize(out["x_norm_patchtokens"], p=2, dim=-1)
+            return embedding, patch_norm
+        return embedding
 
     def backbone_param_groups(self, base_lr: float, llrd: float, unfreeze_last: int):
         """按 layer-wise lr decay 生成 backbone 参数组（深层 lr 大、浅层 lr 小）。
