@@ -40,6 +40,8 @@ EPOCHS="${EPOCHS:-100}"
 ITERS="${ITERS:-0}"
 MILESTONES="${MILESTONES:-30,60,90}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-10}"
+BATCHSIZE="${BATCHSIZE:-96}"
+ACCUM_STEPS="${ACCUM_STEPS:-3}"
 SKIP="${SKIP:-}"
 RESUME="${RESUME:-auto}"
 OUT_SUBDIR="${OUT_SUBDIR:-ablation}"
@@ -47,7 +49,8 @@ ABL_DIR="$WORK_DIR/$OUT_SUBDIR"
 export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
-NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg g2m salad)
+NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg g2m salad \
+      e1b e1b_patch e2a e2bc e1c e1a e4a e4b e4c)
 
 extra_args_for() {
     case "$1" in
@@ -59,6 +62,16 @@ extra_args_for() {
         no_hardneg)  echo "" ;;
         g2m)         echo "--pooling cls+g2m" ;;
         salad)       echo "--pooling salad" ;;
+        # ---- E1/E2/E4 新实验（在 full 基线上单变量叠加）----
+        e1b)         echo "--pooling cls+gem+salad" ;;
+        e1b_patch)   echo "--pooling cls+gem+salad --patch_consistency_lambda 0.1" ;;
+        e2a)         echo "--consistency_lambda 1.0" ;;
+        e2bc)        echo "--consistency_lambda 0.5 --patch_consistency_lambda 0.1" ;;
+        e1c)         echo "--supcon_lambda 0.1" ;;
+        e1a)         echo "--pooling salad --margin 0.5 --scale 80.0" ;;
+        e4a)         echo "--num_subcenters 5" ;;
+        e4b)         echo "--center_lambda 1.0" ;;
+        e4c)         echo "--hard_ratio 0.7" ;;
     esac
 }
 
@@ -68,6 +81,8 @@ probe_pooling_for() {
         cls_pool)    echo "cls" ;;
         g2m)         echo "cls+g2m" ;;
         salad)       echo "salad" ;;
+        e1b|e1b_patch) echo "cls+gem+salad" ;;
+        e1a)         echo "salad" ;;
         *)           echo "cls+gem" ;;
     esac
 }
@@ -111,7 +126,7 @@ run_one() {
             --loss subcenter --num_subcenters 3 --center_lambda 0.5 \
             --pooling cls+gem --unfreeze_last 24 \
             --aug color_preserving --hue 0.02 --consistency_lambda 0.5 \
-            --batchsize 96 --accum_steps 3 --num_workers 12 \
+            --batchsize $BATCHSIZE --accum_steps $ACCUM_STEPS --num_workers 12 \
             --max_epoch "$EPOCHS" --max_iters_per_epoch "$ITERS" \
             --lr_milestones "$MILESTONES" --save_interval "$SAVE_INTERVAL" \
             "${hard[@]}" "${resume[@]}" $(extra_args_for "$name") \
