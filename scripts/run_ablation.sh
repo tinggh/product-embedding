@@ -51,7 +51,8 @@ export LD_PRELOAD="${LD_PRELOAD_LIB:-${LD_PRELOAD:-}}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg g2m salad \
-      e1b e1b_patch e2a e2bc e1c e1a e4a e4b e4c)
+      e1b e1b_patch e2a e2bc e1c e1a e4a e4b e4c \
+      e1b_supcon e1b_patch03 e1b_hard07)
 
 extra_args_for() {
     case "$1" in
@@ -73,6 +74,10 @@ extra_args_for() {
         e4a)         echo "--num_subcenters 5" ;;
         e4b)         echo "--center_lambda 1.0" ;;
         e4c)         echo "--hard_ratio 0.7" ;;
+        # ---- e1b 组合实验（在 e1b 双头基线上叠加，恢复判别力）----
+        e1b_supcon)  echo "--pooling cls+gem+salad --supcon_lambda 0.1" ;;
+        e1b_patch03) echo "--pooling cls+gem+salad --patch_consistency_lambda 0.03" ;;
+        e1b_hard07)  echo "--pooling cls+gem+salad --hard_ratio 0.7" ;;
     esac
 }
 
@@ -82,7 +87,7 @@ probe_pooling_for() {
         cls_pool)    echo "cls" ;;
         g2m)         echo "cls+g2m" ;;
         salad)       echo "salad" ;;
-        e1b|e1b_patch) echo "cls+gem+salad" ;;
+        e1b|e1b_patch|e1b_supcon|e1b_patch03|e1b_hard07) echo "cls+gem+salad" ;;
         e1a)         echo "salad" ;;
         *)           echo "cls+gem" ;;
     esac
