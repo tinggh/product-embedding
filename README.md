@@ -96,26 +96,30 @@ python -m app.probe_eval --probe_root /path/to/probe --ckpt /path/to/runs/exp_e5
 | no_hardneg (40ep) | 0.865 | 0.620 | 0.739 | 0.985 | 0.943 | 0.992 | FAIL |
 | g2m (40ep) | 0.919 | 0.435 | 0.605 | 0.976 | 0.976 | 0.990 | FAIL |
 | salad (40ep) | 0.662 | 0.901 | 0.930 | 0.996 | 0.791 | 0.989 | FAIL |
+| **e1b 双头 (40ep)** | 0.835 | **0.838** | **0.908** | 0.998 | 0.929 | 0.991 | FAIL |
+| e1b_patch 双头+PatchNCE | 0.692 | 0.911 | 0.972 | 1.000 | 0.829 | 0.989 | FAIL |
+| e1c SupCon | 0.870 | 0.732 | 0.853 | 0.990 | 0.948 | 0.991 | FAIL |
+| e1a salad+大margin | 0.065 | 0.995 | 1.000 | 1.000 | 0.100 | 0.947 | FAIL |
 
 ### 关键发现
 
-- **baseline → full 管线价值**：P1 色变 0.19→0.92（+0.73）、P5 易混 0.57→0.97（+0.40）、P6 已过 0.9 门禁；保色增强 + GeM + sub-center + 硬负挖掘把最弱两维拉到可用。
-- **训练长度效应**（full 40→80ep）：P2 +0.085、P3 +0.057（一致性随训练显著提升），P1 −0.008、P5 −0.010（判别略回退）——模型更“一致”但略“欠判别”。当前优先 40ep 迭代，80ep 留最终候选。
-- **核心权衡**：P2/P3（一致性）与 P1/P5（判别）对池化头要求相反。`salad` 强 P2/P3（0.90/0.93）但弱 P1/P5（0.66/0.79）；`cls+gem` 折中但无单项最优。→ E1b 双头（`cls+gem+salad`）为打破此权衡而设计。
-- **各组件价值**（vs full_e40）：保色增强对 P1/P5 关键；Sub-center+Center 使 P5 最强但崩 P2/P3；一致性+GeM 都有贡献；层级硬负对 P5/P6 有益但对 P2 反被压制；深解冻对一致性必要。
+- **e1b 双头（cls+gem+salad）是冠军**：P2/P3 从 0.60/0.75 跃升到 0.84/0.91（+0.24/+0.16），P1/P5 仅降 0.08/0.04——双头架构成功打破一致性与判别力的权衡。
+- **e1b 天虹检索 0.85 阈值精度翻倍**：pegSection 0.33→0.70，StackBase 0.40→0.64；P2/P3 一致性提升直接转化为高阈值召回。
+- **baseline → full 管线价值**：P1 色变 0.19→0.92（+0.73）、P5 易混 0.57→0.97（+0.40）、P6 已过 0.9 门禁。
+- **训练长度效应**（full 40→80ep）：P2 +0.085、P3 +0.057（一致性随训练提升），P1 −0.008、P5 −0.010（判别略回退）。
+- **核心权衡**：P2/P3（一致性）与 P1/P5（判别）对池化头要求相反。`salad` 强 P2/P3 但弱 P1/P5；`cls+gem` 折中；**e1b 双头打破此权衡**。
+- **e1a 崩盘**：salad+大margin 判别坍塌（P1=0.065/P5=0.10），死路。**e4c 印证**：hard_ratio 0.7 让 P5↑但 P2/P3↓。
 
 ## 优化方向
 
-full_e40 短板排序：**P2(0.60) > P3(0.75) > P1(0.92) > P5(0.97) > P4/P6（已饱和）**。重点攻 P2/P3 一致性，同时保 P1/P5 判别力。
+full_e40 短板排序：**P2(0.60) > P3(0.75) > P1(0.92) > P5(0.97) > P4/P6（已饱和）**。e1b 双头已把 P2/P3 提到 0.84/0.91，下一步围绕 e1b 恢复判别力。
 
-| 优先 | 实验 | 命令（full 基线叠加） | 攻克目标 |
+| 优先 | 实验 | 命令（e1b 双头基线叠加） | 攻克目标 |
 |---|---|---|---|
-| P0 | E1b 双头 | `--pooling cls+gem+salad` | P2/P3↑ 保 P1/P5 |
-| P0 | E1b+PatchNCE | `--pooling cls+gem+salad --patch_consistency_lambda 0.1` | P2/P3↑↑ |
-| P1 | E2a 高一致性 | `--consistency_lambda 1.0` | P2/P3↑ |
-| P1 | E2b+c 三视图+PatchNCE | `--consistency_lambda 0.5 --patch_consistency_lambda 0.1` | P2/P3↑ |
-| P1 | E1c SupCon | `--supcon_lambda 0.1` | P1/P5↑ |
-| P2 | E1a salad+大margin | `--pooling salad --margin 0.5 --scale 80.0` | P1/P5↑ |
-| P2 | E4a/b/c 扫描 | `--num_subcenters 5` / `--center_lambda 1.0` / `--hard_ratio 0.7` | P5↑ 微调 |
+| P0 | e1b+SupCon | `--pooling cls+gem+salad --supcon_lambda 0.1` | 拉回 P1/P5 保 P2/P3 |
+| P0 | e1b 80ep | e1b 配置训 80ep | 一致性随训练再提升 |
+| P1 | e1b+低PatchNCE | `--pooling cls+gem+salad --patch_consistency_lambda 0.03` | 微调 P2/P3 不伤判别 |
+| P1 | e1b+hard_ratio | `--pooling cls+gem+salad --hard_ratio 0.7` | 硬负拉回 P5 |
+| P2 | e1c SupCon（轻量备选） | `--supcon_lambda 0.1`（不改架构） | P2/P3=0.73/0.85 保判别 |
 
-E1/E2/E4 代码改动已完成（双头池化、SupCon、PatchNCE、三视图），冒烟测试 8/8 PASS，9 组正式训练（40ep，5 路并行）已启动。详见 `runs/rec/ablation/EVAL_REPORT.md`。
+e1b 集成 7 项策略：DINOv3 ViT-L 深解冻+LLRD、**cls+gem+salad 双头池化**、Sub-center ArcFace+Center Loss、保色增强、双视图一致性、层级硬负采样、AdamW+bf16。第二轮 9 组实验已完成，第三轮 e1b 组合实验进行中。详见 `runs/rec/ablation/EVAL_REPORT.md`。
