@@ -52,7 +52,8 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 
 NAMES=(full shallow legacy_aug arcface cls_pool no_hardneg g2m salad \
       e1b e1b_patch e2a e2bc e1c e1a e4a e4b e4c \
-      e1b_supcon e1b_patch03 e1b_hard07)
+      e1b_supcon e1b_patch03 e1b_hard07 \
+      unfreeze0 unfreeze6 unfreeze12)
 
 extra_args_for() {
     case "$1" in
@@ -78,6 +79,10 @@ extra_args_for() {
         e1b_supcon)  echo "--pooling cls+gem+salad --supcon_lambda 0.1" ;;
         e1b_patch03) echo "--pooling cls+gem+salad --patch_consistency_lambda 0.03" ;;
         e1b_hard07)  echo "--pooling cls+gem+salad --hard_ratio 0.7" ;;
+        # ---- 解冻深度消融（shallow=1, full=24 已有；补 0/6/12）----
+        unfreeze0)   echo "--unfreeze_last 0" ;;
+        unfreeze6)   echo "--unfreeze_last 6" ;;
+        unfreeze12)  echo "--unfreeze_last 12" ;;
     esac
 }
 
