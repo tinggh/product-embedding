@@ -51,7 +51,13 @@ def main():
     args = ap.parse_args()
 
     sys.path.insert(0, os.path.abspath(args.repo))
-    os.chdir(os.path.abspath(args.repo))
+    # 不 chdir 到 repo：app.log_module 会写 "logs/app.log"（相对 CWD），
+    # repo/logs/app.log 可能被历史 sudo 运行改为 root 属主导致权限错误。
+    # 改用临时可写目录，让日志落在可写位置。
+    import tempfile
+    _tmpd = tempfile.mkdtemp(prefix="eval_retrieval_")
+    os.chdir(_tmpd)
+    os.makedirs("logs", exist_ok=True)
     from app.probe_eval import ProbeFeatureExtractor  # noqa: E402
 
     thrs = [float(t) for t in args.thresholds.split(",") if t.strip()]
