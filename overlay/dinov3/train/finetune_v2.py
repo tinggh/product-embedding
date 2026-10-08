@@ -338,6 +338,27 @@ def train_distributed(opt, args):
     start = time.time()
     best_acc = 0
     for i in range(start_epoch, opt.max_epoch):
+        consistency_weight = (
+            args.consistency_lambda
+            if args.consistency_stop_epoch < 0 or i < args.consistency_stop_epoch
+            else 0.0
+        )
+        patch_consistency_weight = (
+            args.patch_consistency_lambda
+            if args.patch_consistency_stop_epoch < 0 or i < args.patch_consistency_stop_epoch
+            else 0.0
+        )
+        if rank == 0 and i in {
+            start_epoch,
+            args.consistency_stop_epoch,
+            args.patch_consistency_stop_epoch,
+        }:
+            logger.info(
+                "epoch %d consistency weights: image=%g patch=%g",
+                i,
+                consistency_weight,
+                patch_consistency_weight,
+            )
         if batch_sampler is not None:
             batch_sampler.set_epoch(i)
         else:
@@ -384,13 +405,13 @@ def train_distributed(opt, args):
                     loss_l, _ = criterion(emb_local.float(), label)
                     loss = loss + loss_l
                     # E2a：全局-局部图像级一致性
-                    if consistency_loss is not None:
-                        loss = loss + args.consistency_lambda * consistency_loss(
+                    if consistency_loss is not None and consistency_weight > 0:
+                        loss = loss + consistency_weight * consistency_loss(
                             emb_global.float(), emb_local.float()
                         )
                     # E2c：patch 级密集对比（global vs local）
-                    if patch_nce_loss is not None:
-                        loss = loss + args.patch_consistency_lambda * patch_nce_loss(
+                    if patch_nce_loss is not None and patch_consistency_weight > 0:
+                        loss = loss + patch_consistency_weight * patch_nce_loss(
                             patch_global.float(), patch_local.float()
                         )
                 if img_part is not None:
@@ -401,12 +422,12 @@ def train_distributed(opt, args):
                         emb_part = out_part
                     loss_p, _ = criterion(emb_part.float(), label)
                     loss = loss + loss_p
-                    if consistency_loss is not None:
-                        loss = loss + args.consistency_lambda * consistency_loss(
+                    if consistency_loss is not None and consistency_weight > 0:
+                        loss = loss + consistency_weight * consistency_loss(
                             emb_global.float(), emb_part.float()
                         )
-                    if patch_nce_loss is not None:
-                        loss = loss + args.patch_consistency_lambda * patch_nce_loss(
+                    if patch_nce_loss is not None and patch_consistency_weight > 0:
+                        loss = loss + patch_consistency_weight * patch_nce_loss(
                             patch_global.float(), patch_part.float()
                         )
                 loss = loss / opt.accum_steps
@@ -577,12 +598,20 @@ def parse_args():
         help="局部-全局一致性损失权重（>0 启用双视图训练）",
     )
     parser.add_argument(
+        "--consistency_stop_epoch", type=int, default=-1,
+        help="从该 epoch 起关闭图像级一致性损失；-1 表示始终启用",
+    )
+    parser.add_argument(
         "--supcon_lambda", type=float, default=0.0,
         help="监督对比损失权重（E1c，>0 启用 SupCon，补充 ArcFace 对变体对的判别）",
     )
     parser.add_argument(
         "--patch_consistency_lambda", type=float, default=0.0,
         help="patch 级一致性损失权重（E2c，>0 启用三视图 + PatchNCE）",
+    )
+    parser.add_argument(
+        "--patch_consistency_stop_epoch", type=int, default=-1,
+        help="从该 epoch 起关闭 PatchNCE；-1 表示始终启用",
     )
     parser.add_argument("--patch_nce_temp", type=float, default=0.1, help="PatchNCE 温度")
     parser.add_argument("--patch_nce_samples", type=int, default=32, help="PatchNCE 每图采样 patch 数")

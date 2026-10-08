@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>README.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="product-embedding">product-embedding</h1>
+<p>基于 DINOv3 的商品细粒度特征提取优化（度量学习微调框架）。
+本仓库是 <strong>overlay</strong>：只包含对 <a href="https://github.com/facebookresearch/dinov3">DINOv3</a> 官方代码的新增文件，
+不 fork、不修改上游任何文件，通过 <code>install.sh</code> 覆盖安装到一份 dinov3-main 检出中使用。</p>
+<h2 id="优化内容">优化内容</h2>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GeM 池化</td>
+<td><code>dinov3/layers/gem.py</code></td>
+<td>可学习 p 的广义均值池化，替代单一 CLS，抗遮挡（TRT 友好）</td>
+</tr>
+<tr>
+<td>嵌入封装</td>
+<td><code>dinov3/models/embedder.py</code></td>
+<td><code>ProductEmbedder</code> = backbone + 池化 + 投影，输出 1024 维 L2 归一化嵌入；内含 LLRD 参数组；支持 <code>cls+gem+salad</code> 双头池化（E1b）与 <code>forward(return_patch=)</code> 取 patch token</td>
+</tr>
+<tr>
+<td>Sub-center ArcFace</td>
+<td><code>dinov3/loss/subcenter_arcface_loss.py</code></td>
+<td>每类 K=3 子中心 + Center Loss，解决多视角/多面问题</td>
+</tr>
+<tr>
+<td>局部-全局一致性</td>
+<td><code>dinov3/loss/local_global_consistency.py</code></td>
+<td>Multi-Similarity 变体，解决部分-整体相似度低</td>
+</tr>
+<tr>
+<td>监督对比损失</td>
+<td><code>dinov3/loss/supcon_loss.py</code></td>
+<td>SupCon（E1c），同类拉近/异类推远，与 ArcFace 梯度互补，增强变体判别</td>
+</tr>
+<tr>
+<td>Patch 级对比损失</td>
+<td><code>dinov3/loss/patch_nce_loss.py</code></td>
+<td>DenseCL 风格 PatchNCE（E2c），两视图同位置 patch 为正、跨图 patch 为负，提升多视角/局部一致性</td>
+</tr>
+<tr>
+<td>保色增强</td>
+<td><code>dinov3/data/color_preserving_augs.py</code></td>
+<td>小幅 hue 扰动（±0.02）+ 亮度/阴影/暗角/遮挡增强；含 <code>DualViewTransform</code> 与 <code>TripleViewTransform</code>（E2b，全局+局部+零件三视图）</td>
+</tr>
+<tr>
+<td>硬负样本采样</td>
+<td><code>dinov3/data/hard_negative_sampler.py</code></td>
+<td>同 Product Line 变体混入 batch，DDP 分片</td>
+</tr>
+<tr>
+<td>训练入口</td>
+<td><code>dinov3/train/finetune_v2.py</code></td>
+<td>深解冻 + LLRD + AdamW + bf16 AMP + 梯度累积</td>
+</tr>
+<tr>
+<td>层级标签</td>
+<td><code>app/build_hierarchy.py</code></td>
+<td>生成 hierarchy.json + split 泄漏校验</td>
+</tr>
+<tr>
+<td>六维探针评测</td>
+<td><code>app/probe_eval.py</code></td>
+<td>P1 颜色变体 / P2 多视角 / P3 部分-整体 / P4 遮挡 / P5 相似品 / P6 开集</td>
+</tr>
+<tr>
+<td>数据集准备</td>
+<td><code>scripts/prepare_sku_dataset.py</code></td>
+<td>sku100wdata 风格数据集（barcode 目录无 split）→ RetailProduct npy</td>
+</tr>
+</tbody>
+</table>
+<h2 id="安装">安装</h2>
+<pre class="hljs"><code><div>git <span class="hljs-built_in">clone</span> https://github.com/tinggh/product-embedding.git
+./product-embedding/install.sh /path/to/dinov3-main
+</div></code></pre>
+<h2 id="使用">使用</h2>
+<p>详见 <code>overlay/app/RUNBOOK_finetune_v2.md</code>（消融实验矩阵、4090-24G 显存档位、评测门禁流程）。</p>
+<p>容器/服务器一键流水线（<code>scripts/</code> 下，全部参数走环境变量，可直接迁移到其他 GPU 容器）：</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># 1. 数据准备：metadata → hierarchy → 测试集选择(闭集+开集) → npy 切分(开集剔除)</span>
+PY=/path/to/python REPO=/path/dinov3-main PE=/path/product-embedding \
+DATASET_ROOT=/path/sku100wdata FINGERPRINT=/path/fingerprint.csv \
+WORK_DIR=/path/work bash scripts/00_prepare_data.sh
+
+<span class="hljs-comment"># 2. 训练（E5 全量配置；EXTRA_ARGS 可覆盖，如 EXTRA_ARGS=&quot;--max_epoch 30&quot;）</span>
+PY=/path/to/python REPO=/path/dinov3-main \
+DATASET_ROOT=/path/sku100wdata NPY_DIR=/path/work/npy \
+CKPT=/path/dinov3_vitl16_pretrain_lvd1689m.pth OUTPUT_DIR=/path/runs/exp \
+NGPU=8 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+HIERARCHY=/path/work/hierarchy.json bash scripts/01_train.sh
+
+<span class="hljs-comment"># 3. 六维探针评测</span>
+PY=/path/to/python REPO=/path/dinov3-main \
+PROBE_ROOT=/path/work/testset/probe CKPT=/path/runs/exp/best.pth \
+OUTPUT=/path/work/report bash scripts/02_probe_eval.sh
+</div></code></pre>
+<p>手动分步调用（旧方式）：</p>
+<pre class="hljs"><code><div><span class="hljs-built_in">cd</span> /path/to/dinov3-main
+<span class="hljs-comment"># 1. 数据集准备（生成 split npy，原地不动图片）</span>
+python /path/to/product-embedding/scripts/prepare_sku_dataset.py \
+    --dataset_root /path/to/sku100wdata0324
+<span class="hljs-comment"># 2. 层级标签</span>
+python -m app.build_hierarchy --dataset_root /path/to/sku100wdata0324 --output hierarchy.json
+<span class="hljs-comment"># 3. 训练（单卡示例；多卡调 --nproc_per_node）</span>
+torchrun --nproc_per_node=1 dinov3/train/finetune_v2.py --train \
+    --dataset_root /path/to/sku100wdata0324 \
+    --ckpt_path /path/to/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
+    --output_dir /path/to/runs/exp_e5 \
+    --loss subcenter --pooling cls+gem --aug color_preserving \
+    --consistency_lambda 0.5 --hierarchy_json hierarchy.json --hard_ratio 0.5
+<span class="hljs-comment"># 4. 六维探针评测</span>
+python -m app.probe_eval --probe_root /path/to/probe --ckpt /path/to/runs/exp_e5/best.pth --output report
+</div></code></pre>
+<h2 id="设计背景">设计背景</h2>
+<ul>
+<li>放弃 SSL 领域续训：DINO+iBOT 的不变性目标与细粒度检索目标错位，窄域续训导致通用表征漂移、泛化变差；
+保留的&quot;预训练&quot;是 DINOv3 官方 LVD-1689M 权重本身。</li>
+<li>只微调最后 1 个 block 无法改变编码在早中层的颜色/纹理表征 → 深解冻 + LLRD。</li>
+<li>颜色敏感与光照鲁棒的矛盾由「小幅 hue 扰动 + 监督信号」解决，而非 SSL 增强调参。</li>
+</ul>
+<h2 id="评估结果">评估结果</h2>
+<p>六维探针评测（<code>work_sku100w/testset/probe</code>，50164 张图）：P1/P5 为 diff 型（相似度&lt;0.7 通过率，越高越好），P2/P3/P4 为 same 型（相似度≥0.75 通过率，越高越好），P6 为开集 top1 命中率（≥0.9 通过）。overall PASS 需 6 维全通过（P1~P5 要求 100%）。</p>
+<table>
+<thead>
+<tr>
+<th>experiment</th>
+<th>P1 色变</th>
+<th>P2 多视角</th>
+<th>P3 局整</th>
+<th>P4 遮挡</th>
+<th>P5 易混</th>
+<th>P6 开集</th>
+<th>overall</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline (v1.1.2)</td>
+<td>0.189</td>
+<td>0.735</td>
+<td>0.706</td>
+<td>0.995</td>
+<td>0.567</td>
+<td>0.973</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>full_e40 (40ep)</td>
+<td>0.919</td>
+<td>0.599</td>
+<td>0.746</td>
+<td>0.980</td>
+<td>0.971</td>
+<td>0.992</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>full (E5, 80ep)</td>
+<td>0.911</td>
+<td>0.684</td>
+<td>0.803</td>
+<td>0.986</td>
+<td>0.962</td>
+<td>0.993</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>shallow (40ep)</td>
+<td>0.959</td>
+<td>0.298</td>
+<td>0.273</td>
+<td>0.982</td>
+<td>0.952</td>
+<td>0.982</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>legacy_aug (40ep)</td>
+<td>0.895</td>
+<td>0.610</td>
+<td>0.352</td>
+<td>0.995</td>
+<td>0.848</td>
+<td>0.988</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>arcface (40ep)</td>
+<td>0.922</td>
+<td>0.341</td>
+<td>0.519</td>
+<td>0.977</td>
+<td>0.986</td>
+<td>0.990</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>cls_pool (40ep)</td>
+<td>0.816</td>
+<td>0.417</td>
+<td>0.522</td>
+<td>0.987</td>
+<td>0.948</td>
+<td>0.987</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>no_hardneg (40ep)</td>
+<td>0.865</td>
+<td>0.620</td>
+<td>0.739</td>
+<td>0.985</td>
+<td>0.943</td>
+<td>0.992</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>g2m (40ep)</td>
+<td>0.919</td>
+<td>0.435</td>
+<td>0.605</td>
+<td>0.976</td>
+<td>0.976</td>
+<td>0.990</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>salad (40ep)</td>
+<td>0.662</td>
+<td>0.901</td>
+<td>0.930</td>
+<td>0.996</td>
+<td>0.791</td>
+<td>0.989</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td><strong>e1b 双头 (40ep)</strong></td>
+<td>0.835</td>
+<td><strong>0.838</strong></td>
+<td><strong>0.908</strong></td>
+<td>0.998</td>
+<td>0.929</td>
+<td>0.991</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>e1b_patch 双头+PatchNCE</td>
+<td>0.692</td>
+<td>0.911</td>
+<td>0.972</td>
+<td>1.000</td>
+<td>0.829</td>
+<td>0.989</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>e1c SupCon</td>
+<td>0.870</td>
+<td>0.732</td>
+<td>0.853</td>
+<td>0.990</td>
+<td>0.948</td>
+<td>0.991</td>
+<td>FAIL</td>
+</tr>
+<tr>
+<td>e1a salad+大margin</td>
+<td>0.065</td>
+<td>0.995</td>
+<td>1.000</td>
+<td>1.000</td>
+<td>0.100</td>
+<td>0.947</td>
+<td>FAIL</td>
+</tr>
+</tbody>
+</table>
+<h3 id="关键发现">关键发现</h3>
+<ul>
+<li><strong>e1b 双头（cls+gem+salad）是冠军</strong>：P2/P3 从 0.60/0.75 跃升到 0.84/0.91（+0.24/+0.16），P1/P5 仅降 0.08/0.04——双头架构成功打破一致性与判别力的权衡。</li>
+<li><strong>e1b 天虹检索 0.85 阈值总样本命中率显著提升（相对 full_e40）</strong>：pegSection 0.33→0.70，StackBase 0.40→0.64。这里的数值是包含拒识样本的 accuracy，不是 accepted precision；新模型必须分别校准阈值。</li>
+<li><strong>baseline → full 管线价值</strong>：P1 色变 0.19→0.92（+0.73）、P5 易混 0.57→0.97（+0.40）、P6 已过 0.9 门禁。</li>
+<li><strong>训练长度效应</strong>（full 40→80ep）：P2 +0.085、P3 +0.057（一致性随训练提升），P1 −0.008、P5 −0.010（判别略回退）。</li>
+<li><strong>核心权衡</strong>：P2/P3（一致性）与 P1/P5（判别）对池化头要求相反。<code>salad</code> 强 P2/P3 但弱 P1/P5；<code>cls+gem</code> 折中；<strong>e1b 双头打破此权衡</strong>。</li>
+<li><strong>e1a 崩盘</strong>：salad+大margin 判别坍塌（P1=0.065/P5=0.10），死路。<strong>e4c 印证</strong>：hard_ratio 0.7 让 P5↑但 P2/P3↓。</li>
+</ul>
+<h2 id="第三轮组合实验">第三轮组合实验</h2>
+<p>围绕 e1b 恢复判别力的三项实验均已完成，但没有超过纯 e1b 的综合表现。</p>
+<table>
+<thead>
+<tr>
+<th>实验</th>
+<th style="text-align:right">P1</th>
+<th style="text-align:right">P2</th>
+<th style="text-align:right">P3</th>
+<th style="text-align:right">P5</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>e1b</strong></td>
+<td style="text-align:right">0.835</td>
+<td style="text-align:right"><strong>0.838</strong></td>
+<td style="text-align:right"><strong>0.908</strong></td>
+<td style="text-align:right">0.929</td>
+<td>当前综合最优</td>
+</tr>
+<tr>
+<td>e1b+SupCon 0.1</td>
+<td style="text-align:right"><strong>0.881</strong></td>
+<td style="text-align:right">0.560</td>
+<td style="text-align:right">0.760</td>
+<td style="text-align:right"><strong>0.952</strong></td>
+<td>判别恢复，但一致性大幅回退</td>
+</tr>
+<tr>
+<td>e1b+PatchNCE 0.03</td>
+<td style="text-align:right">0.862</td>
+<td style="text-align:right">0.628</td>
+<td style="text-align:right">0.857</td>
+<td style="text-align:right"><strong>0.952</strong></td>
+<td>强于 0.1，但仍不及纯 e1b</td>
+</tr>
+<tr>
+<td>e1b+hard_ratio 0.7</td>
+<td style="text-align:right">0.876</td>
+<td style="text-align:right">0.601</td>
+<td style="text-align:right">0.819</td>
+<td style="text-align:right">0.943</td>
+<td>增加硬负比例没有拉回 P5</td>
+</tr>
+</tbody>
+</table>
+<p>因此停止继续放大 SupCon、PatchNCE 或 hard ratio；当前验证方向改为 epoch 选择、后期关闭一致性损失，以及按业务场景进行双阶段融合和阈值校准。</p>
+<p>e1b 集成 7 项策略：DINOv3 ViT-L 深解冻+LLRD、<strong>cls+gem+salad 双头池化</strong>、Sub-center ArcFace+Center Loss、保色增强、双视图一致性、层级硬负采样、AdamW+bf16。第二、三轮实验、双阶段检索及训练后期关闭一致性损失均已完成。详见 <code>runs/rec/ablation/EVAL_REPORT.md</code>。</p>
+<h2 id="最新补充实验2026-08-20">最新补充实验（2026-08-20）</h2>
+<h3 id="e1b-不同-epoch">e1b 不同 epoch</h3>
+<p>门禁改为 P1~P5 <code>min_pass_rate=0.95</code>（不再要求不现实的 100%）；下表仍展示原始通过率。epoch 0 的 P1/P5 为 0 是未训练投影头的预期结果。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:right">epoch</th>
+<th style="text-align:right">P1 色变</th>
+<th style="text-align:right">P2 多视角</th>
+<th style="text-align:right">P3 局整</th>
+<th style="text-align:right">P4 遮挡</th>
+<th style="text-align:right">P5 易混</th>
+<th style="text-align:right">P6 开集</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0.000</td>
+<td style="text-align:right">1.000</td>
+<td style="text-align:right">1.000</td>
+<td style="text-align:right">1.000</td>
+<td style="text-align:right">0.000</td>
+<td style="text-align:right">0.741</td>
+</tr>
+<tr>
+<td style="text-align:right">10</td>
+<td style="text-align:right">0.805</td>
+<td style="text-align:right">0.795</td>
+<td style="text-align:right">0.887</td>
+<td style="text-align:right">0.996</td>
+<td style="text-align:right">0.905</td>
+<td style="text-align:right">0.991</td>
+</tr>
+<tr>
+<td style="text-align:right">20</td>
+<td style="text-align:right">0.830</td>
+<td style="text-align:right">0.835</td>
+<td style="text-align:right">0.899</td>
+<td style="text-align:right">0.996</td>
+<td style="text-align:right">0.933</td>
+<td style="text-align:right">0.991</td>
+</tr>
+<tr>
+<td style="text-align:right"><strong>30</strong></td>
+<td style="text-align:right"><strong>0.838</strong></td>
+<td style="text-align:right"><strong>0.846</strong></td>
+<td style="text-align:right">0.905</td>
+<td style="text-align:right">0.996</td>
+<td style="text-align:right"><strong>0.933</strong></td>
+<td style="text-align:right"><strong>0.992</strong></td>
+</tr>
+<tr>
+<td style="text-align:right">39</td>
+<td style="text-align:right">0.835</td>
+<td style="text-align:right">0.838</td>
+<td style="text-align:right"><strong>0.908</strong></td>
+<td style="text-align:right"><strong>0.998</strong></td>
+<td style="text-align:right">0.929</td>
+<td style="text-align:right">0.991</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：epoch 30 是当前 Pareto 最优点；30→39 仅小幅提高 P3/P4，同时 P1/P2/P5 均回退。产物位于 <code>runs/rec/ablation/e1b_epochs/</code>。</p>
+<h3 id="两阶段检索e1b-召回--full_e40-重排">两阶段检索（e1b 召回 + full_e40 重排）</h3>
+<ul>
+<li><strong>StackBase 有收益</strong>：<code>TopK=50, alpha(e1b)=0.5</code> 的留出集无阈值 Top-1 为 <strong>0.9831</strong>，高于 e1b(0.9759) 和 full_e40(0.9783)。若校准目标为 precision≥0.99，使用 e1b Top-50 + full_e40 重排（alpha=0），阈值 0.69，留出集 coverage=0.8277、precision=0.9937、accuracy=0.8224。</li>
+<li><strong>pegSection 无收益</strong>：最优仍为纯 e1b；precision≥0.99 时校准阈值过高且留出集 coverage 仅约 6%，说明该场景不应与 StackBase 共用阈值或融合策略。</li>
+</ul>
+<p>报告位于 <code>runs/rec/ablation/two_stage/</code>。</p>
+<h3 id="两个业务测试集的-060070-阈值结果">两个业务测试集的 0.60–0.70 阈值结果</h3>
+<p>本项目业务侧将 <strong>precision</strong> 定义为 <code>(Top-1 SKU 正确且相似度&gt;阈值的数量) / 全量测试数据</code>，拒识计为未命中；评估脚本 JSON 中该值的字段名是 <code>accuracy</code>。每个单元格为 <strong>业务 precision（全量分母）/ accepted precision（超阈值分母）</strong>，后者计算 <code>(Top-1 正确且过阈值) / 过阈值数量</code>。完整 JSON（含 coverage）位于 <code>runs/rec/ablation/threshold_curves/</code>。</p>
+<h4 id="pegsection527-张测试图">pegSection（527 张测试图）</h4>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align:right">0.60</th>
+<th style="text-align:right">0.62</th>
+<th style="text-align:right">0.64</th>
+<th style="text-align:right">0.66</th>
+<th style="text-align:right">0.68</th>
+<th style="text-align:right">0.70</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline</td>
+<td style="text-align:right">.8482/.8482</td>
+<td style="text-align:right">.8444/.8492</td>
+<td style="text-align:right">.8444/.8492</td>
+<td style="text-align:right">.8387/.8500</td>
+<td style="text-align:right">.8349/.8494</td>
+<td style="text-align:right">.8330/.8508</td>
+</tr>
+<tr>
+<td>full_e40</td>
+<td style="text-align:right">.8406/.8878</td>
+<td style="text-align:right">.8330/.8887</td>
+<td style="text-align:right">.8292/.8882</td>
+<td style="text-align:right">.8216/.8891</td>
+<td style="text-align:right">.8008/.8884</td>
+<td style="text-align:right">.7799/.8858</td>
+</tr>
+<tr>
+<td><strong>e1b</strong></td>
+<td style="text-align:right"><strong>.8520/.8552</strong></td>
+<td style="text-align:right"><strong>.8501/.8550</strong></td>
+<td style="text-align:right"><strong>.8482/.8596</strong></td>
+<td style="text-align:right"><strong>.8463/.8762</strong></td>
+<td style="text-align:right"><strong>.8406/.8755</strong></td>
+<td style="text-align:right"><strong>.8368/.8785</strong></td>
+</tr>
+<tr>
+<td>arcface</td>
+<td style="text-align:right">.8046/.8870</td>
+<td style="text-align:right">.7913/.8872</td>
+<td style="text-align:right">.7647/.8857</td>
+<td style="text-align:right">.7476/.8894</td>
+<td style="text-align:right">.7021/.8873</td>
+<td style="text-align:right">.6698/.8869</td>
+</tr>
+<tr>
+<td>e1b_stop30@39</td>
+<td style="text-align:right">.8444/.8525</td>
+<td style="text-align:right">.8425/.8538</td>
+<td style="text-align:right">.8406/.8585</td>
+<td style="text-align:right">.8349/.8627</td>
+<td style="text-align:right">.8330/.8676</td>
+<td style="text-align:right">.8273/.8668</td>
+</tr>
+</tbody>
+</table>
+<p>pegSection 上 e1b 在 0.60–0.70 全区间取得最高业务 precision；若优先总命中率推荐阈值 <strong>0.60</strong>，若更重视 accepted precision 可选 <strong>0.66</strong>。full_e40/arcface 的 accepted precision 较高，但分数整体偏低、拒识更多；arcface 无阈值 Top-1 为 0.8425。</p>
+<h4 id="stackbase3689-张测试图">StackBase（3689 张测试图）</h4>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th style="text-align:right">0.60</th>
+<th style="text-align:right">0.62</th>
+<th style="text-align:right">0.64</th>
+<th style="text-align:right">0.66</th>
+<th style="text-align:right">0.68</th>
+<th style="text-align:right">0.70</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline</td>
+<td style="text-align:right"><strong>.9705</strong>/.9705</td>
+<td style="text-align:right"><strong>.9705</strong>/.9705</td>
+<td style="text-align:right"><strong>.9705</strong>/.9707</td>
+<td style="text-align:right"><strong>.9705</strong>/.9710</td>
+<td style="text-align:right"><strong>.9705</strong>/.9712</td>
+<td style="text-align:right"><strong>.9696</strong>/.9715</td>
+</tr>
+<tr>
+<td>full_e40</td>
+<td style="text-align:right">.9311/.9859</td>
+<td style="text-align:right">.9149/.9874</td>
+<td style="text-align:right">.8924/.9907</td>
+<td style="text-align:right">.8696/.9923</td>
+<td style="text-align:right">.8327/.9922</td>
+<td style="text-align:right">.7970/.9926</td>
+</tr>
+<tr>
+<td>e1b</td>
+<td style="text-align:right">.9696/.9771</td>
+<td style="text-align:right">.9672/.9770</td>
+<td style="text-align:right">.9618/.9785</td>
+<td style="text-align:right">.9523/.9791</td>
+<td style="text-align:right">.9433/.9808</td>
+<td style="text-align:right">.9287/.9825</td>
+</tr>
+<tr>
+<td>arcface</td>
+<td style="text-align:right">.9013/.9902</td>
+<td style="text-align:right">.8756/.9911</td>
+<td style="text-align:right">.8463/.9911</td>
+<td style="text-align:right">.8075/.9920</td>
+<td style="text-align:right">.7666/.9930</td>
+<td style="text-align:right">.7232/.9940</td>
+</tr>
+<tr>
+<td>e1b_stop30@39</td>
+<td style="text-align:right">.9686/.9765</td>
+<td style="text-align:right">.9642/.9769</td>
+<td style="text-align:right">.9604/.9771</td>
+<td style="text-align:right">.9547/.9791</td>
+<td style="text-align:right">.9442/.9795</td>
+<td style="text-align:right">.9314/.9806</td>
+</tr>
+</tbody>
+</table>
+<p>StackBase 上单模型若优先业务 precision，baseline 在该区间仍最佳；e1b 在阈值 0.60 时几乎保持 baseline 业务 precision，同时 accepted precision 提升至 0.9771。full_e40/arcface 适合高 accepted precision、允许低 coverage 的场景：full_e40@0.64 为业务 precision=0.8924、accepted precision=0.9907、coverage=0.9008；arcface@0.60 为 0.9013/0.9902/0.9103。arcface 无阈值 Top-1 为 0.9794。</p>
+<h3 id="训练后期关闭一致性损失">训练后期关闭一致性损失</h3>
+<p>独立脚本：<code>runs/rec/ablation/run_e1b_stop30.sh</code>（仓库模板：<code>examples/run_e1b_stop30_h100.sh</code>）。实验从 e1b epoch30 恢复，自 epoch31 起 <code>consistency weight=0</code>，训练至 epoch39。</p>
+<table>
+<thead>
+<tr>
+<th>checkpoint</th>
+<th style="text-align:right">P1</th>
+<th style="text-align:right">P2</th>
+<th style="text-align:right">P3</th>
+<th style="text-align:right">P4</th>
+<th style="text-align:right">P5</th>
+<th style="text-align:right">P6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原 e1b@30</td>
+<td style="text-align:right">0.8378</td>
+<td style="text-align:right">0.8456</td>
+<td style="text-align:right">0.9051</td>
+<td style="text-align:right">0.9962</td>
+<td style="text-align:right">0.9333</td>
+<td style="text-align:right">0.9916</td>
+</tr>
+<tr>
+<td>原 e1b@39</td>
+<td style="text-align:right">0.8351</td>
+<td style="text-align:right">0.8380</td>
+<td style="text-align:right">0.9076</td>
+<td style="text-align:right"><strong>0.9975</strong></td>
+<td style="text-align:right">0.9286</td>
+<td style="text-align:right">0.9912</td>
+</tr>
+<tr>
+<td>stop30 best@38</td>
+<td style="text-align:right"><strong>0.8405</strong></td>
+<td style="text-align:right">0.8519</td>
+<td style="text-align:right">0.9063</td>
+<td style="text-align:right">0.9962</td>
+<td style="text-align:right"><strong>0.9333</strong></td>
+<td style="text-align:right"><strong>0.9916</strong></td>
+</tr>
+<tr>
+<td><strong>stop30@39</strong></td>
+<td style="text-align:right"><strong>0.8405</strong></td>
+<td style="text-align:right"><strong>0.8532</strong></td>
+<td style="text-align:right"><strong>0.9076</strong></td>
+<td style="text-align:right">0.9962</td>
+<td style="text-align:right"><strong>0.9333</strong></td>
+<td style="text-align:right"><strong>0.9916</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>六维结论</strong>：关闭一致性后，epoch39 相对原 e1b@39 的 P1/P2/P5 分别提升 +0.0054/+0.0152/+0.0047，P3 持平，P4 下降 0.0013；相对原 e1b@30 也小幅提升 P1/P2/P3。因此 stop30@39 是当前六维最均衡 checkpoint，但 P1/P2/P3/P5 仍未达到 0.95 门禁，overall 仍为 FAIL。</p>
+<p><strong>业务检索结论</strong>：stop30@39 的无阈值 Top-1 为 pegSection=0.8520、StackBase=0.9753，均未超过原 e1b（0.8539/0.9759）。pegSection 在 0.60–0.70 全区间也低于原 e1b；StackBase 仅在较高阈值略有全量 precision 增益（0.70：0.9314 vs 0.9287）。precision≥0.99 的独立校准在 StackBase 选择阈值 0.82，留出集 business precision=0.7194、accepted precision=0.9917、coverage=0.7254；pegSection 校准阈值 0.93 在留出集仅得到 accepted precision=0.8519、coverage=0.1484，不能满足目标。因此 stop30 可作为六维探针候选，但不替换当前业务检索 e1b，pegSection 也不应使用 0.99 precision 硬门禁。</p>
+<p>产物：<code>e1b_stop30_report.{json,md}</code>（best@38）、<code>e1b_stop30_epoch39_report.{json,md}</code>、<code>threshold_curves/{peg,stack}_e1b_stop30_epoch39.{json,md}</code>。</p>
+
+</body>
+</html>

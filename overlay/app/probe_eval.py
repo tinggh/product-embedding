@@ -231,16 +231,23 @@ def eval_open_set(probe_dir, features, p6_min_acc):
     n_hit = 0
     same_sims, diff_sims = [], []
     misses = []
-    for q_path, q_class in queries:
-        sims = gallery_feats @ features[q_path]
-        best_idx = int(np.argmax(sims))
-        hit = gallery_classes[best_idx] == q_class
-        n_hit += int(hit)
-        if not hit:
-            misses.append((osp.relpath(q_path, probe_dir), q_class,
-                           gallery_classes[best_idx], round(float(sims[best_idx]), 4)))
-        for g_class, s in zip(gallery_classes, sims):
-            (same_sims if g_class == q_class else diff_sims).append(float(s))
+    # 分块矩阵乘法比逐 query 调用 BLAS 快很多，同时限制峰值内存。
+    gallery_classes_arr = np.asarray(gallery_classes)
+    chunk_size = 256
+    for start in range(0, len(queries), chunk_size):
+        chunk = queries[start : start + chunk_size]
+        query_feats = np.stack([features[p] for p, _ in chunk])
+        sims_batch = query_feats @ gallery_feats.T
+        for (q_path, q_class), sims in zip(chunk, sims_batch):
+            best_idx = int(np.argmax(sims))
+            hit = gallery_classes[best_idx] == q_class
+            n_hit += int(hit)
+            if not hit:
+                misses.append((osp.relpath(q_path, probe_dir), q_class,
+                               gallery_classes[best_idx], round(float(sims[best_idx]), 4)))
+            same_mask = gallery_classes_arr == q_class
+            same_sims.extend(sims[same_mask].astype(float).tolist())
+            diff_sims.extend(sims[~same_mask].astype(float).tolist())
 
     top1 = n_hit / len(queries) if queries else 0.0
 

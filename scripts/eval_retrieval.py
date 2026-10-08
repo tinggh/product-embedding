@@ -13,6 +13,8 @@
 """
 import argparse
 import glob
+import hashlib
+import json
 import os
 import sys
 import time
@@ -34,6 +36,37 @@ def collect(root):
     return paths, np.array(skus)
 
 
+def threshold_curve(scores, correct, thresholds):
+    rows = []
+    for thr in thresholds:
+        accepted = scores > thr
+        hits = correct & accepted
+        business_precision = float(hits.mean())
+        accepted_precision = float(hits.sum() / accepted.sum()) if accepted.any() else 0.0
+        rows.append({
+            "threshold": round(float(thr), 4),
+            # 兼容旧报告：accuracy/precision 保留；新增无歧义字段供后续使用。
+            "business_precision": round(business_precision, 4),
+            "accepted_precision": round(accepted_precision, 4),
+            "accuracy": round(business_precision, 4),
+            "coverage": round(float(accepted.mean()), 4),
+            "precision": round(accepted_precision, 4),
+            "correct": int(hits.sum()),
+            "total": int(len(scores)),
+            "above_threshold": int(accepted.sum()),
+            "rejected": int((~accepted).sum()),
+        })
+    return rows
+
+
+def stable_calibration_mask(paths, fraction):
+    """按路径稳定哈希切分校准集，避免在同一批样本上选阈值并报告结果。"""
+    if not 0.0 < fraction < 1.0:
+        raise ValueError("calibration_fraction must be in (0, 1)")
+    values = [int(hashlib.sha1(p.encode("utf-8")).hexdigest()[:8], 16) / 0xFFFFFFFF for p in paths]
+    return np.asarray(values) < fraction
+
+
 def main():
     ap = argparse.ArgumentParser(description="top1 检索精度评测")
     ap.add_argument("--repo", default=os.environ.get("REPO", "."),
@@ -45,6 +78,12 @@ def main():
     ap.add_argument("--test", required=True, help="测试集目录（每 SKU 一个子目录）")
     ap.add_argument("--thresholds", default="0.7,0.85",
                     help="逗号分隔的相似度阈值列表")
+    ap.add_argument("--threshold-grid", default="0.50:0.95:0.01",
+                    help="阈值校准网格 start:stop:step")
+    ap.add_argument("--target-precision", type=float, default=0.99,
+                    help="校准集上要求的最低 accepted precision")
+    ap.add_argument("--calibration-fraction", type=float, default=0.3,
+                    help="按测试图片路径稳定划分给阈值校准的比例")
     ap.add_argument("--batch_size", type=int, default=128)
     ap.add_argument("--device", default="cuda:0" if os.environ.get("CUDA_VISIBLE_DEVICES") is not None else "cuda:0")
     ap.add_argument("--output", default="", help="可选，输出报告 basename（写 .md/.json）")
@@ -99,19 +138,40 @@ def main():
           f"test: {len(t_paths)} imgs / {len(set(t_skus))} skus | "
           f"test 缺失 SKU: {len(missing)}")
     print(f"top1 SKU 正确率（无阈值）: {correct_sku.mean():.4f} ({int(correct_sku.sum())}/{n})")
-    rows = []
-    for thr in thrs:
-        correct = correct_sku & (top1_sim > thr)
-        acc = correct.mean()
-        above = int((top1_sim > thr).sum())
-        reject = n - above
-        prec = correct.sum() / above if above else 0.0
-        print(f"thr={thr}: 正确率={acc:.4f} ({int(correct.sum())}/{n})  "
-              f"超阈值={above}  拒识={reject}  超阈值正确率(prec)={prec:.4f}")
-        rows.append({"threshold": thr, "accuracy": round(float(acc), 4),
-                     "correct": int(correct.sum()), "total": n,
-                     "above_threshold": above, "rejected": reject,
-                     "precision": round(float(prec), 4)})
+    rows = threshold_curve(top1_sim, correct_sku, thrs)
+    for row in rows:
+        print(f"thr={row['threshold']}: 正确率={row['accuracy']:.4f} "
+              f"({row['correct']}/{n})  coverage={row['coverage']:.4f}  "
+              f"超阈值正确率(precision)={row['precision']:.4f}")
+
+    start, stop, step = (float(x) for x in args.threshold_grid.split(":"))
+    grid = np.arange(start, stop + step / 2, step)
+    calibration_mask = stable_calibration_mask(t_paths, args.calibration_fraction)
+    evaluation_mask = ~calibration_mask
+    calibration_curve = threshold_curve(
+        top1_sim[calibration_mask], correct_sku[calibration_mask], grid
+    )
+    eligible = [r for r in calibration_curve if r["precision"] >= args.target_precision]
+    selected = max(eligible, key=lambda r: (r["coverage"], -r["threshold"])) if eligible else max(
+        calibration_curve, key=lambda r: (r["precision"], r["coverage"])
+    )
+    calibrated_eval = threshold_curve(
+        top1_sim[evaluation_mask], correct_sku[evaluation_mask], [selected["threshold"]]
+    )[0]
+    calibration = {
+        "method": "stable_path_hash_split",
+        "calibration_fraction": args.calibration_fraction,
+        "calibration_samples": int(calibration_mask.sum()),
+        "evaluation_samples": int(evaluation_mask.sum()),
+        "target_precision": args.target_precision,
+        "selected_threshold": selected["threshold"],
+        "calibration_metrics": selected,
+        "heldout_evaluation_metrics": calibrated_eval,
+    }
+    print(f"calibrated threshold={selected['threshold']:.4f}; heldout "
+          f"coverage={calibrated_eval['coverage']:.4f}, "
+          f"precision={calibrated_eval['precision']:.4f}, "
+          f"accuracy={calibrated_eval['accuracy']:.4f}")
 
     if missing:
         miss_mask = np.array([s in set(missing) for s in t_skus])
@@ -130,7 +190,6 @@ def main():
 
     # ---- 可选写报告 ----
     if args.output:
-        import json
         report = {
             "ckpt": args.ckpt, "pooling": args.pooling,
             "gallery": args.gallery, "test": args.test,
@@ -139,6 +198,7 @@ def main():
             "missing_test_skus": missing,
             "top1_acc_no_threshold": round(float(correct_sku.mean()), 4),
             "thresholds": rows,
+            "calibration": calibration,
         }
         with open(args.output + ".json", "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
@@ -152,6 +212,10 @@ def main():
             for r in rows:
                 f.write(f"| {r['threshold']} | {r['accuracy']:.4f} | {r['correct']}/{r['total']} | "
                         f"{r['above_threshold']} | {r['rejected']} | {r['precision']:.4f} |\n")
+            f.write("\n## Calibrated threshold (held-out)\n\n")
+            f.write(f"- selected threshold: **{calibration['selected_threshold']:.4f}**\n")
+            f.write(f"- target precision: {calibration['target_precision']:.4f}\n")
+            f.write(f"- held-out metrics: `{calibrated_eval}`\n")
         print(f"\nreport -> {args.output}.md / {args.output}.json")
 
 
